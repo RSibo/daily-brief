@@ -195,6 +195,7 @@ my_env.tfvars
 .env
 .requirements.txt
 .google-agents-cli/
+.adk/
 
 # A2A Inspector
 tools/a2a-inspector/

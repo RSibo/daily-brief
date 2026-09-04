@@ -36,5 +36,5 @@ editorial_loop = LoopAgent(
         briefing_writer_agent,
         editor_reviewer_agent,
     ],
-    max_iterations=3,
+    max_iterations=4,
 )

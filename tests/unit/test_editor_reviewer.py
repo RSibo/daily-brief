@@ -263,7 +263,7 @@ def test_editorial_loop_configuration() -> None:
     """Verifies editorial_loop orchestration properties."""
     assert isinstance(editorial_loop, LoopAgent)
     assert editorial_loop.name == "editorial_loop"
-    assert editorial_loop.max_iterations == 3
+    assert editorial_loop.max_iterations == 4
     assert len(editorial_loop.sub_agents) == 2
     assert editorial_loop.sub_agents[0].name == briefing_writer_agent.name
     assert editorial_loop.sub_agents[1].name == editor_reviewer_agent.name
