@@ -295,7 +295,7 @@ def cleanup_pipeline_artifacts(
 
 @trace_tool(tool_name="deliver_daily_briefing")
 def deliver_daily_briefing(
-    final_briefing: dict[str, Any],
+    final_briefing: dict[str, Any] | str | None = None,
     podcast_asset: dict[str, Any] | None = None,
     delivery_mode: str = "all",
     mock: bool = True,
@@ -307,8 +307,10 @@ def deliver_daily_briefing(
     strictly after delivery completes.
 
     Args:
-        final_briefing: FinalBriefingPayload dictionary.
-        podcast_asset: Optional PodcastAssetPayload dictionary.
+        final_briefing: Optional FinalBriefingPayload dictionary or raw HTML. If omitted,
+            automatically resolved from tool_context.state['final_briefing'].
+        podcast_asset: Optional PodcastAssetPayload dictionary. If omitted,
+            automatically resolved from tool_context.state['podcast_asset'].
         delivery_mode: Delivery channel ('calendar', 'chat', or 'all').
         mock: Whether to use mock calendar creation.
         tool_context: ADK ToolContext to register delivery_result in session state.
@@ -317,6 +319,27 @@ def deliver_daily_briefing(
         Consolidated delivery outcome dictionary.
     """
     try:
+        if (
+            final_briefing is None
+            and tool_context is not None
+            and hasattr(tool_context, "state")
+        ):
+            final_briefing = tool_context.state.get(
+                "final_briefing"
+            ) or tool_context.state.get("draft_briefing", {})
+
+        if isinstance(final_briefing, str):
+            final_briefing = {"final_html": final_briefing}
+        elif not isinstance(final_briefing, dict):
+            final_briefing = {}
+
+        if (
+            podcast_asset is None
+            and tool_context is not None
+            and hasattr(tool_context, "state")
+        ):
+            podcast_asset = tool_context.state.get("podcast_asset")
+
         raw_html = final_briefing.get("final_html", "")
         drive_url = podcast_asset.get("drive_web_url") if podcast_asset else None
 
@@ -351,9 +374,14 @@ def deliver_daily_briefing(
             "status": "delivered",
             "delivered_at": datetime.now(SYDNEY_TZ).isoformat(),
             "calendar_event": calendar_result,
+            "calendar_event_id": calendar_result.get("event_id")
+            if calendar_result
+            else None,
+            "chat_response": chat_response,
             "chat_response_length": len(chat_response) if chat_response else 0,
             "has_audio_link": bool(drive_url),
             "cleanup": cleanup_result,
+            "cleanup_status": cleanup_result,
         }
 
         if tool_context is not None:

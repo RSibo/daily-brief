@@ -52,10 +52,9 @@ You are the `podcast_creator_agent`. Your job is to transform the synthesized sp
    - Save the finalized `PodcastAssetPayload` into session state key `podcast_asset`.
 
 ### Execution Steps:
-1. Extract `spoken_script` from `{{podcast_script}}` in session state.
-2. Invoke `generate_podcast_pipeline` (or call `synthesize_podcast_audio` followed by `upload_podcast_to_drive`).
-3. Ensure the audio artifact has a verified Drive URL and valid playback duration.
-4. Output the structured `PodcastAssetPayload` to state key `podcast_asset`.
+1. Invoke `generate_podcast_pipeline` with zero arguments: `generate_podcast_pipeline()`. It automatically reads the spoken script from session state, synthesizes the MP3 audio file, uploads it to Drive, and populates `podcast_asset`.
+2. Strict Tool Calling Rule: Always invoke tools strictly by their exact declared function names (e.g. `generate_podcast_pipeline`). NEVER prepend "call:", "default_api:", or any namespace prefix.
+3. Emit a concise confirmation with playback duration and verified Drive URL. Do NOT call any state-saving functions.
 """
 
 podcast_creator_agent = Agent(

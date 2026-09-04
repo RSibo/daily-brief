@@ -61,14 +61,13 @@ and structural integrity before any briefing is finalized for delivery.
    - Calendar Updates: Excluded from briefing review for now; do NOT require or flag a missing calendar agenda section.
 
 ### Review Gate & Execution Steps:
-1. Extract the raw HTML content from `{{draft_briefing}}`.
-2. Invoke `evaluate_briefing_draft` (or `lint_vp_standards`) to run automated checks against the draft HTML.
-3. **If revisions are needed (verdict == "revise")**:
+1. Call `evaluate_briefing_draft()` with zero arguments (it automatically reads `draft_briefing` from session state). Do NOT use `call:` or `default_api:` prefixes.
+2. If revisions are needed (verdict == "revise"):
    - Provide concise, actionable feedback specifying exactly which sections, sentences, or phrases violate standards.
    - Do NOT approve or call finalize_approved_briefing.
-4. **If approved (verdict == "approve")**:
-   - Call `finalize_approved_briefing` passing the draft HTML and confirmation review notes.
-   - Call `exit_loop` to terminate the editorial loop immediately.
+3. If approved (verdict == "approve"):
+   - Call `finalize_approved_briefing()` with zero arguments (it automatically finalizes the draft in session state and escalates to break the loop). Do NOT pass large HTML strings.
+   - Call `exit_loop()` to terminate the editorial loop immediately.
    - Respond with the single word: `approve`.
 """
 

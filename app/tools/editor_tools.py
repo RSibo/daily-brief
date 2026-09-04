@@ -59,7 +59,10 @@ EMOJI_PATTERN = re.compile(r"[\U00010000-\U0010ffff\u2600-\u27bf\u2300-\u23ff\u2
 
 
 @trace_tool(tool_name="lint_vp_standards")
-def lint_vp_standards(html_content: str) -> dict[str, Any]:
+def lint_vp_standards(
+    html_content: str | None = None,
+    tool_context: ToolContext | None = None,
+) -> dict[str, Any]:
     """Lints an executive HTML briefing against Google VP update standards.
 
     Audits tone, hyperbole, emotional filler, emojis, sentence counts,
@@ -67,10 +70,18 @@ def lint_vp_standards(html_content: str) -> dict[str, Any]:
 
     Args:
         html_content: Complete HTML string of the executive briefing draft.
+        tool_context: Optional ADK tool context to resolve draft from session state.
 
     Returns:
         Dictionary containing validation verdict, issues list, and granular checks.
     """
+    if (
+        html_content is None
+        and tool_context is not None
+        and hasattr(tool_context, "state")
+    ):
+        html_content = tool_context.state.get("draft_briefing", {}).get("raw_html", "")
+
     if not html_content or not html_content.strip():
         return {
             "valid": False,
@@ -179,7 +190,10 @@ def lint_vp_standards(html_content: str) -> dict[str, Any]:
         issues.append("Missing required 'ACTIVE HOT LIST UPDATES' section.")
 
     # 6. Today's agenda start phrase check (optional: skipped when calendar updates omitted)
-    if "looking at your day ahead" in lower_html or "day ahead" in lower_html:
+    if (
+        "<b>looking at your day ahead" in lower_html
+        or "<h3>looking at your day ahead" in lower_html
+    ):
         agenda_match = re.search(
             r"LOOKING AT YOUR DAY AHEAD(?:</b>|</h3>)\s*(?:<br\s*/?>)*\s*(?:<p>)?(.*?)(?:</p>|<br|<ul>|$)",
             html_content,
@@ -237,8 +251,9 @@ def lint_vp_standards(html_content: str) -> dict[str, Any]:
 
 @trace_tool(tool_name="evaluate_briefing_draft")
 def evaluate_briefing_draft(
-    draft_html: str,
+    draft_html: str | None = None,
     context_metadata: dict[str, Any] | None = None,
+    tool_context: ToolContext | None = None,
 ) -> dict[str, Any]:
     """Evaluates a synthesized executive draft briefing and decides review verdict.
 
@@ -246,14 +261,26 @@ def evaluate_briefing_draft(
     verdict ('approve' or 'revise') with actionable critique.
 
     Args:
-        draft_html: The HTML briefing draft to evaluate.
+        draft_html: Optional HTML briefing draft to evaluate. If omitted,
+            auto-resolves from tool_context session state 'draft_briefing'.
         context_metadata: Optional context metadata for traceability.
+        tool_context: Optional ADK tool context to resolve draft from session state.
 
     Returns:
         Dictionary containing verdict ('approve' or 'revise'), critique string,
         and list of specific issues.
     """
     try:
+        if (
+            draft_html is None
+            and tool_context is not None
+            and hasattr(tool_context, "state")
+        ):
+            draft_html = tool_context.state.get("draft_briefing", {}).get(
+                "raw_html", ""
+            )
+
+        draft_html = draft_html or ""
         lint_results = lint_vp_standards(draft_html)
         if lint_results["valid"]:
             return {
@@ -280,7 +307,7 @@ def evaluate_briefing_draft(
 
 @trace_tool(tool_name="finalize_approved_briefing")
 def finalize_approved_briefing(
-    draft_html: str,
+    draft_html: str | None = None,
     reviewer_notes: str = "Approved - passes all VP standards.",
     tool_context: ToolContext | None = None,
 ) -> dict[str, Any]:
@@ -290,7 +317,8 @@ def finalize_approved_briefing(
     is available, and triggers loop escalation to exit the review cycle.
 
     Args:
-        draft_html: The approved, validated HTML briefing text.
+        draft_html: Optional approved HTML briefing text. If omitted,
+            auto-resolves from tool_context session state 'draft_briefing'.
         reviewer_notes: Editorial notes confirming validation.
         tool_context: ADK ToolContext for state updates and loop escalation.
 
@@ -298,6 +326,16 @@ def finalize_approved_briefing(
         Serialized FinalBriefingPayload dictionary.
     """
     try:
+        if (
+            draft_html is None
+            and tool_context is not None
+            and hasattr(tool_context, "state")
+        ):
+            draft_html = tool_context.state.get("draft_briefing", {}).get(
+                "raw_html", ""
+            )
+
+        draft_html = draft_html or ""
         approved_at = datetime.now(SYDNEY_TZ).isoformat()
         payload = FinalBriefingPayload(
             final_html=draft_html,

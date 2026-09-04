@@ -31,6 +31,8 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from google.adk.tools import ToolContext
+
 from app.app_utils.telemetry import trace_tool
 from app.app_utils.typing import (
     CommunicationItem,
@@ -230,7 +232,7 @@ def fetch_unread_leadership_threads(
     filtered_items: list[dict[str, Any]] = []
     for t in raw_threads:
         subject = t.get("subject", "No Subject")
-        sender = t.get("from", "")
+        sender = t.get("from", t.get("sender", ""))
         snippet = t.get("snippet", "")
         if is_suppressed_noise(subject, sender, snippet):
             continue
@@ -301,8 +303,14 @@ def scan_target_chat_spaces(
     chat_items: list[dict[str, Any]] = []
 
     if test_mode_fixtures is not None:
-        raw_dms = test_mode_fixtures.get("dms", [])
-        raw_mentions = test_mode_fixtures.get("mentions", [])
+        if isinstance(test_mode_fixtures, dict):
+            raw_dms = test_mode_fixtures.get("dms", [])
+            raw_mentions = test_mode_fixtures.get("mentions", [])
+        elif isinstance(test_mode_fixtures, list):
+            raw_dms = []
+            raw_mentions = test_mode_fixtures
+        else:
+            raw_dms, raw_mentions = [], []
     elif not os.path.exists(GCHAT_CLI):
         return StructuredToolError(
             error_code="GCHAT_CLI_NOT_FOUND",
@@ -464,6 +472,7 @@ def get_daily_calendar_agenda(
 def harvest_all_internal_communications(
     lookback_hours: int = 24,
     test_fixtures: dict[str, Any] | None = None,
+    tool_context: ToolContext | None = None,
 ) -> dict[str, Any]:
     """Master tool coordinating end-to-end internal communications harvesting.
 
@@ -473,6 +482,7 @@ def harvest_all_internal_communications(
     Args:
         lookback_hours: Time window in hours (default: 24).
         test_fixtures: Optional synthetic fixtures mapping to 'gmail', 'chat', 'calendar'.
+        tool_context: Optional ADK tool context for session state access.
 
     Returns:
         Dict conforming to InternalHarvestPayload schema.
@@ -517,4 +527,7 @@ def harvest_all_internal_communications(
         calendar_events=calendar_events,
         hot_list_matches={},
     )
-    return payload.model_dump()
+    result = payload.model_dump()
+    if tool_context is not None and hasattr(tool_context, "state"):
+        tool_context.state["internal_comms_data"] = result
+    return result

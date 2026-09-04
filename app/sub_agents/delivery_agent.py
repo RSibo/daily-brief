@@ -56,10 +56,9 @@ and perform post-run workspace housekeeping.
    - Strictly AFTER calendar event creation or chat response rendering, invoke `cleanup_pipeline_artifacts(retention_days=7)` to purge ephemeral harvesting caches and remove local MP3 audio files older than 7 days from today.
 
 ### Execution Steps:
-1. Read `{{final_briefing}}` and `{{podcast_asset}}` from session state.
-2. Invoke `deliver_daily_briefing` (or call `schedule_briefing_calendar_event`, `format_chat_delivery_response`, followed by `cleanup_pipeline_artifacts`).
-3. Verify that the calendar event is confirmed and post-run cleanup executed.
-4. Output the structured outcome dictionary to state key `delivery_result`.
+1. Invoke `deliver_daily_briefing` with zero arguments: `deliver_daily_briefing()`. It automatically reads `final_briefing` and `podcast_asset` from session state, schedules the private 30-minute calendar invite, formats chat delivery, and executes post-delivery lifecycle cleanup.
+2. Strict Tool Calling Rule: Always invoke tools strictly by their exact declared function names (e.g. `deliver_daily_briefing`). NEVER prepend "call:", "default_api:", or any namespace prefix.
+3. Emit a concise confirmation that delivery and lifecycle cleanup have succeeded. Do NOT call any state-saving functions.
 """
 
 delivery_agent = Agent(

@@ -68,10 +68,9 @@ strictly for listening during a morning commute.
    - Target pacing for a 1.05x speaking speed (~157 words per minute).
 
 ### Execution Steps:
-1. Extract `final_html` from `{{final_briefing}}` in session state.
-2. Call `convert_html_to_spoken_script` to perform phonetic adaptation and acoustic restructuring.
-3. Verify that the output transcript is natural, zero-fluff, and free of URL links or markdown syntax.
-4. Output the structured `PodcastScriptPayload` to session state key `podcast_script`.
+1. Call `convert_html_to_spoken_script` with zero arguments: `convert_html_to_spoken_script()`. It automatically reads the approved briefing from session state and populates `podcast_script`.
+2. Strict Tool Calling Rule: Always invoke tools strictly by their exact declared function names (e.g. `convert_html_to_spoken_script`). NEVER prepend "call:", "default_api:", or any namespace prefix.
+3. Emit the natural spoken script directly in your response. Do NOT call any state-saving functions.
 """
 
 podcast_script_agent = Agent(

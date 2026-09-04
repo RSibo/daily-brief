@@ -146,9 +146,10 @@ def test_market_news_agent_definition():
     """Verifies ADK agent configuration for market_news_agent."""
     assert market_news_agent.name == "market_news_agent"
     assert market_news_agent.output_key == "market_news_data"
-    assert len(market_news_agent.tools) == 4
+    assert len(market_news_agent.tools) == 5
     tool_names = [getattr(t, "__name__", str(t)) for t in market_news_agent.tools]
     assert "harvest_all_market_news" in tool_names
     assert "scan_foundation_models" in tool_names
     assert "scan_ai_agent_frameworks" in tool_names
     assert "scan_cloud_ai_movements" in tool_names
+    assert any("google_search" in str(t).lower() for t in market_news_agent.tools)

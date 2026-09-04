@@ -76,8 +76,9 @@ CANONICAL_PHONETIC_MAP = {
 
 @trace_tool(tool_name="convert_html_to_spoken_script")
 def convert_html_to_spoken_script(
-    html_content: str,
+    html_content: str | None = None,
     phonetic_map: dict[str, str] | None = None,
+    tool_context: ToolContext | None = None,
 ) -> dict[str, Any]:
     """Converts an executive HTML briefing into an acoustically optimized spoken script.
 
@@ -85,13 +86,33 @@ def convert_html_to_spoken_script(
     phonetic expansions, and timing metrics at a 1.05x speaking pace.
 
     Args:
-        html_content: Raw or polished HTML briefing text.
+        html_content: Optional raw or polished HTML briefing text. If omitted, automatically
+            resolved from tool_context.state['final_briefing'] or state['draft_briefing'].
         phonetic_map: Optional dictionary of regex patterns to phonetic replacements.
+        tool_context: Optional ADK ToolContext to resolve briefing HTML and store podcast_script.
 
     Returns:
         Serialized PodcastScriptPayload dictionary.
     """
     try:
+        # Resolve from tool_context state if omitted
+        if (
+            not html_content
+            and tool_context is not None
+            and hasattr(tool_context, "state")
+        ):
+            final_briefing = tool_context.state.get("final_briefing", {})
+            if isinstance(final_briefing, dict):
+                html_content = final_briefing.get("final_html", "")
+            elif isinstance(final_briefing, str):
+                html_content = final_briefing
+            if not html_content:
+                draft_briefing = tool_context.state.get("draft_briefing", {})
+                if isinstance(draft_briefing, dict):
+                    html_content = draft_briefing.get("raw_html", "")
+                elif isinstance(draft_briefing, str):
+                    html_content = draft_briefing
+
         if not html_content or not html_content.strip():
             return StructuredToolError(
                 error_code="EMPTY_CONTENT",
@@ -189,7 +210,10 @@ def convert_html_to_spoken_script(
             estimated_duration_seconds=estimated_duration_sec,
             generated_at=datetime.now(SYDNEY_TZ).isoformat(),
         )
-        return payload.model_dump()
+        serialized = payload.model_dump()
+        if tool_context is not None and hasattr(tool_context, "state"):
+            tool_context.state["podcast_script"] = serialized
+        return serialized
     except Exception as exc:
         return StructuredToolError(
             error_code="SCRIPT_CONVERSION_FAILED",
@@ -223,9 +247,10 @@ def _create_valid_mp3_frames(file_path: str, duration_seconds: int = 15) -> str:
 
 @trace_tool(tool_name="synthesize_podcast_audio")
 def synthesize_podcast_audio(
-    spoken_script: str,
+    spoken_script: str | None = None,
     output_path: str | None = None,
     mock: bool = True,
+    tool_context: ToolContext | None = None,
 ) -> dict[str, Any]:
     """Synthesizes an audio stream from the spoken script and writes an MP3 file.
 
@@ -234,14 +259,34 @@ def synthesize_podcast_audio(
     a valid MPEG-1 Layer 3 MP3 binary file.
 
     Args:
-        spoken_script: Spoken text transcript to synthesize.
+        spoken_script: Optional spoken text transcript to synthesize. If omitted,
+            automatically resolved from tool_context.state['podcast_script'].
         output_path: Optional explicit output path. Defaults to temporary file.
         mock: When True, produces a deterministic MP3 audio file for CI/offline testing.
+        tool_context: Optional ADK ToolContext to resolve script from session state.
 
     Returns:
         Dictionary containing local_file_path, duration_seconds, and file_size_bytes.
     """
     try:
+        if (
+            not spoken_script
+            and tool_context is not None
+            and hasattr(tool_context, "state")
+        ):
+            script_data = tool_context.state.get("podcast_script", {})
+            if isinstance(script_data, dict):
+                spoken_script = script_data.get("spoken_script", "")
+            elif isinstance(script_data, str):
+                spoken_script = script_data
+
+        if not spoken_script or not spoken_script.strip():
+            return StructuredToolError(
+                error_code="EMPTY_SCRIPT",
+                message="Cannot synthesize audio from empty spoken script.",
+                recovery_instruction="Ensure podcast_script contains valid spoken text.",
+            ).model_dump()
+
         words = len(spoken_script.split())
         duration_sec = max(1, int(words / 2.625))
 
@@ -347,7 +392,7 @@ def upload_podcast_to_drive(
 
 @trace_tool(tool_name="generate_podcast_pipeline")
 def generate_podcast_pipeline(
-    spoken_script: str,
+    spoken_script: str | None = None,
     tool_context: ToolContext | None = None,
     mock: bool = True,
 ) -> dict[str, Any]:
@@ -356,7 +401,8 @@ def generate_podcast_pipeline(
     Builds the complete PodcastAssetPayload and registers it in session state.
 
     Args:
-        spoken_script: Spoken script transcript.
+        spoken_script: Optional spoken script transcript. If omitted, automatically
+            resolved from tool_context.state['podcast_script'].
         tool_context: ADK ToolContext to update session state key 'podcast_asset'.
         mock: Whether to use deterministic mock generation for audio and Drive.
 
@@ -364,7 +410,27 @@ def generate_podcast_pipeline(
         Serialized PodcastAssetPayload dictionary.
     """
     try:
-        synth_result = synthesize_podcast_audio(spoken_script, mock=mock)
+        if (
+            not spoken_script
+            and tool_context is not None
+            and hasattr(tool_context, "state")
+        ):
+            script_data = tool_context.state.get("podcast_script", {})
+            if isinstance(script_data, dict):
+                spoken_script = script_data.get("spoken_script", "")
+            elif isinstance(script_data, str):
+                spoken_script = script_data
+
+        if not spoken_script or not spoken_script.strip():
+            return StructuredToolError(
+                error_code="EMPTY_SCRIPT",
+                message="Cannot run podcast pipeline with empty spoken script.",
+                recovery_instruction="Ensure podcast_script contains valid spoken text.",
+            ).model_dump()
+
+        synth_result = synthesize_podcast_audio(
+            spoken_script, mock=mock, tool_context=tool_context
+        )
         if "error_code" in synth_result:
             return synth_result
 
