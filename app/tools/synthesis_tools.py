@@ -98,6 +98,7 @@ def synthesize_overnight_summary(
     leadership_threads: list[dict[str, Any]] | None = None,
     chat_threads: list[dict[str, Any]] | None = None,
     calendar_events: list[dict[str, Any]] | None = None,
+    include_calendar: bool = False,
 ) -> str:
     """Synthesizes exactly 6 plain-text, unbolded sentences summarizing overnight comms.
 
@@ -107,7 +108,8 @@ def synthesize_overnight_summary(
     Args:
         leadership_threads: Triaged leadership communication items.
         chat_threads: High-priority chat space or DM items.
-        calendar_events: Today's agenda items.
+        calendar_events: Optional today's agenda items.
+        include_calendar: Whether to include calendar schedule details. Defaults to False.
 
     Returns:
         String containing exactly 6 plain-text unbolded sentences.
@@ -135,13 +137,13 @@ def synthesize_overnight_summary(
 
     sentence_4 = "Commercial deal motions across enterprise accounts are progressing with critical review gates scheduled for this week."
 
-    if event_count > 0:
+    if include_calendar and event_count > 0:
         first_event = (calendar_events or [])[0]
         title = first_event.get("title", "morning leadership standup")
         time_slot = first_event.get("start_time", "09:00 AM")
         sentence_5 = f"Your calendar today features {event_count} scheduled commitments, opening with {title} at {time_slot}."
     else:
-        sentence_5 = "Your schedule today provides substantial focus time with no immediate meeting conflicts on the morning calendar."
+        sentence_5 = "Cross-functional execution streams and account workstreams remain active for the day ahead."
 
     sentence_6 = "All required briefing dossiers, background contexts, and decision options are organized below for your review."
 
@@ -350,6 +352,7 @@ def assemble_draft_briefing(
     market_news_data: dict[str, Any] | str | None = None,
     hot_list_config_path: str = "config/hot_list.md",
     tool_context: ToolContext | None = None,
+    include_calendar: bool = False,
 ) -> dict[str, Any]:
     """Assembles all synthesized sections into a complete DraftBriefingPayload.
 
@@ -358,7 +361,7 @@ def assemble_draft_briefing(
     2. Core Updates & Leadership Directives.
     3. Active Hot List Updates (with 3-day unread qualification).
     4. AI Market Updates (trailing 72 hours).
-    5. Looking at your day ahead... (meeting readiness dossier).
+    5. Looking at your day ahead... (meeting readiness dossier, only if include_calendar is True).
 
     Args:
         internal_comms_data: Optional serialized InternalHarvestPayload dictionary or raw text.
@@ -367,6 +370,7 @@ def assemble_draft_briefing(
             If omitted, automatically loaded from tool_context.state["market_news_data"].
         hot_list_config_path: Path to config/hot_list.md.
         tool_context: Optional ADK ToolContext for state retrieval and updates.
+        include_calendar: Whether to include calendar schedule dossier. Defaults to False.
 
     Returns:
         Serialized DraftBriefingPayload dictionary conforming to schemas.
@@ -426,6 +430,7 @@ def assemble_draft_briefing(
             leadership_threads=leadership_threads,
             chat_threads=chat_threads,
             calendar_events=calendar_events,
+            include_calendar=include_calendar,
         )
 
         # 2. Core updates
@@ -458,8 +463,12 @@ def assemble_draft_briefing(
         else:
             market_html = format_market_updates(announcements=[])
 
-        # 5. Calendar agenda
-        agenda_html = format_calendar_agenda(calendar_events=calendar_events)
+        # 5. Calendar agenda (only included if include_calendar is True)
+        agenda_html = (
+            format_calendar_agenda(calendar_events=calendar_events)
+            if include_calendar
+            else ""
+        )
 
         # Assemble full HTML
         raw_html_blocks = [
@@ -471,9 +480,14 @@ def assemble_draft_briefing(
             hot_list_html,
             "<br><b>AI MARKET UPDATES (TRAILING 72 HOURS)</b>",
             market_html,
-            "<br><b>LOOKING AT YOUR DAY AHEAD</b>",
-            agenda_html,
         ]
+        if include_calendar and agenda_html:
+            raw_html_blocks.extend(
+                [
+                    "<br><b>LOOKING AT YOUR DAY AHEAD</b>",
+                    agenda_html,
+                ]
+            )
         full_raw_html = "\n".join(raw_html_blocks)
 
         payload = DraftBriefingPayload(

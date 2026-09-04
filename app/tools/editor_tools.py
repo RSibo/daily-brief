@@ -178,7 +178,7 @@ def lint_vp_standards(html_content: str) -> dict[str, Any]:
         checks["hot_list_fallback_valid"] = False
         issues.append("Missing required 'ACTIVE HOT LIST UPDATES' section.")
 
-    # 6. Today's agenda start phrase check
+    # 6. Today's agenda start phrase check (optional: skipped when calendar updates omitted)
     if "looking at your day ahead" in lower_html or "day ahead" in lower_html:
         agenda_match = re.search(
             r"LOOKING AT YOUR DAY AHEAD(?:</b>|</h3>)\s*(?:<br\s*/?>)*\s*(?:<p>)?(.*?)(?:</p>|<br|<ul>|$)",
@@ -203,8 +203,8 @@ def lint_vp_standards(html_content: str) -> dict[str, Any]:
                 "Agenda section does not contain the mandatory opening phrase 'Looking at your day ahead...'."
             )
     else:
-        checks["day_ahead_start_valid"] = False
-        issues.append("Missing required 'LOOKING AT YOUR DAY AHEAD' section.")
+        # Calendar updates omitted per current operational directive
+        checks["day_ahead_start_valid"] = True
 
     # 7. Hyperlink integrity
     links = re.findall(r'href=["\']([^"\']*)["\']', html_content)

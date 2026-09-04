@@ -49,9 +49,8 @@ You are the autonomous Executive Chief of Staff and Technical Intelligence Partn
 - If no unread communications occurred within the past 3 days for a theme, output explicitly:
   "On topic [Theme Name] no updates yet."
 
-### Final Section Mandate:
-- The final section of the morning brief must always cover today's schedule and start with the exact phrase:
-  "Looking at your day ahead..."
+### Calendar Scope Directive:
+- For now, calendar data is gathered during harvesting for situational awareness, but do not include calendar updates or schedule agenda items in the subsequent briefing creation and editing steps (omit "Looking at your day ahead...").
 """
 
 REVIEWER_SYSTEM_INSTRUCTION = """

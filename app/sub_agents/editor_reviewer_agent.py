@@ -58,7 +58,7 @@ and structural integrity before any briefing is finalized for delivery.
    - Section 2 (Core Updates): Max 2 dense bullets per topic, recency dates, Rob's stance, and next actions.
    - Section 3 (Hot List): Must evaluate active themes; if no unread updates in trailing 3 days, verify exact fallback: `On topic [Theme Name] no updates yet.`
    - Section 4 (AI Market Updates): Structured industry movements from trailing 72 hours across foundation models, agent frameworks, and cloud AI/ML.
-   - Section 5 (Looking at your day ahead...): Must begin with the exact phrase `Looking at your day ahead...`.
+   - Calendar Updates: Excluded from briefing review for now; do NOT require or flag a missing calendar agenda section.
 
 ### Review Gate & Execution Steps:
 1. Extract the raw HTML content from `{{draft_briefing}}`.

@@ -28,7 +28,6 @@ from google.genai import types
 from app.prompts.constitution import CHIEF_OF_STAFF_CONSTITUTION
 from app.tools.synthesis_tools import (
     assemble_draft_briefing,
-    format_calendar_agenda,
     format_core_updates,
     format_hot_list_updates,
     format_market_updates,
@@ -44,14 +43,15 @@ signals and external market intelligence into a dense, email-friendly, polished 
 briefing.
 
 ### Content Structure & Mandatory Sequencing:
-You must assemble the briefing following this exact 5-section sequence:
+You must assemble the briefing following this exact 4-section sequence:
 1. **OVERNIGHT SUMMARY**: Exactly 6 plain-text, unbolded sentences summarizing critical communications received since 5:00 PM previous evening. Maintain an authoritative, calm Chief of Staff voice.
 2. **CORE UPDATES & LEADERSHIP DIRECTIVES**: Dense HTML bullets (max 2 per topic) covering senior leadership (Simon Elisha, Mitesh Agarwal, Vamsi Ramakrishnan, etc.) and direct report asks. Every bullet must include a hyperlinked title, bolded entity/account names (e.g. **Optus**, **Woolworths**), a recency date anchor (e.g., "Yesterday...", "Last response Wednesday"), Rob's stance, and an explicit next action.
 3. **ACTIVE HOT LIST UPDATES**: Evaluate active themes from `config/hot_list.md` against unread communications over the trailing 3 days. For any theme with no unread updates, you must output the exact mandatory fallback string:
    `On topic [Theme Name] no updates yet.`
 4. **AI MARKET UPDATES (TRAILING 72 HOURS)**: Grouped updates across Foundation Models & Open Weights, AI Agents & Frameworks, and Cloud AI/ML movements.
-5. **LOOKING AT YOUR DAY AHEAD**: Today's meeting readiness dossier and agenda. This section MUST begin with the exact phrase:
-   `Looking at your day ahead...`
+
+### Calendar Scope Directive:
+Calendar data is gathered during harvesting for situational awareness, but do NOT include calendar updates, meeting agendas, or a "Looking at your day ahead" section in the briefing for now.
 
 ### Negative Constraints & VP Standards:
 - Zero hyperbole: NEVER use words like "strategic", "emergency", or "game-changer" unless quoted directly from source messages.
@@ -59,10 +59,10 @@ You must assemble the briefing following this exact 5-section sequence:
 - Every claim, thread, and announcement must be backed by a verified canonical hyperlink.
 
 ### Execution Instructions:
-1. Synthesize all communications and market updates into the complete 5-section executive briefing following the exact sequence.
-2. If calling `assemble_draft_briefing`, call it with zero arguments: `assemble_draft_briefing()`, as it automatically loads from session state.
+1. Synthesize all communications and market updates into the complete 4-section executive briefing following the exact sequence.
+2. If calling `assemble_draft_briefing`, call it with zero arguments: `assemble_draft_briefing()`, as it automatically loads from session state and excludes calendar updates.
 3. Strict Tool Calling Rule: Always invoke tools strictly by their exact declared function names (e.g. `assemble_draft_briefing`). NEVER prepend "call:", "default_api:", or any namespace prefix.
-4. Emit the synthesized 5-section executive briefing directly in clean HTML in your response. Do NOT call any state-saving functions.
+4. Emit the synthesized 4-section executive briefing directly in clean HTML in your response. Do NOT call any state-saving functions.
 """
 
 briefing_writer_agent = Agent(
@@ -77,7 +77,6 @@ briefing_writer_agent = Agent(
         format_core_updates,
         format_hot_list_updates,
         format_market_updates,
-        format_calendar_agenda,
         assemble_draft_briefing,
     ],
     output_key="draft_briefing",

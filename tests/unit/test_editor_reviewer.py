@@ -80,6 +80,17 @@ def test_lint_vp_standards_valid_briefing() -> None:
     assert checks["has_valid_links"] is True
 
 
+def test_lint_vp_standards_valid_without_calendar_section() -> None:
+    """Verifies that a briefing omitting calendar updates passes validation cleanly."""
+    briefing_no_cal = SAMPLE_VALID_BRIEFING.split(
+        "<br><b>LOOKING AT YOUR DAY AHEAD</b>"
+    )[0]
+    result = lint_vp_standards(briefing_no_cal.strip())
+    assert result["valid"] is True
+    assert len(result["issues"]) == 0
+    assert result["checks"]["day_ahead_start_valid"] is True
+
+
 def test_lint_vp_standards_empty_input() -> None:
     """Verifies handling when the briefing HTML is empty or whitespace."""
     result = lint_vp_standards("   ")

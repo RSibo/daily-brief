@@ -216,7 +216,7 @@ def test_assemble_draft_briefing_full_payload():
         == 6
     )
 
-    # 2. Verify all sections appear in raw_html in the exact sequential order
+    # 2. Verify all sections appear in raw_html in the exact sequential order (calendar omitted by default)
     pos_summary = payload.raw_html.find("OVERNIGHT SUMMARY")
     pos_core = payload.raw_html.find("CORE UPDATES & LEADERSHIP DIRECTIVES")
     pos_hot = payload.raw_html.find("ACTIVE HOT LIST UPDATES")
@@ -227,11 +227,24 @@ def test_assemble_draft_briefing_full_payload():
     assert pos_core != -1
     assert pos_hot != -1
     assert pos_market != -1
-    assert pos_calendar != -1
+    # Calendar updates are omitted from briefing creation for now
+    assert pos_calendar == -1
 
-    assert pos_summary < pos_core < pos_hot < pos_market < pos_calendar, (
+    assert pos_summary < pos_core < pos_hot < pos_market, (
         f"Section order violation in raw_html! Positions: summary={pos_summary}, core={pos_core}, "
-        f"hot={pos_hot}, market={pos_market}, calendar={pos_calendar}"
+        f"hot={pos_hot}, market={pos_market}"
+    )
+
+    # Verify that when include_calendar=True, the calendar dossier is appended
+    payload_with_cal = DraftBriefingPayload(
+        **assemble_draft_briefing(
+            internal_data, market_data, "config/hot_list.md", include_calendar=True
+        )
+    )
+    pos_cal_included = payload_with_cal.raw_html.find("LOOKING AT YOUR DAY AHEAD")
+    assert pos_cal_included != -1
+    assert pos_cal_included > payload_with_cal.raw_html.find(
+        "AI MARKET UPDATES (TRAILING 72 HOURS)"
     )
 
 
@@ -239,14 +252,13 @@ def test_briefing_writer_agent_definition():
     """Verifies ADK agent configuration for briefing_writer_agent."""
     assert briefing_writer_agent.name == "briefing_writer_agent"
     assert briefing_writer_agent.output_key == "draft_briefing"
-    assert len(briefing_writer_agent.tools) == 6
+    assert len(briefing_writer_agent.tools) == 5
     tool_names = [getattr(t, "__name__", str(t)) for t in briefing_writer_agent.tools]
     assert "assemble_draft_briefing" in tool_names
     assert "synthesize_overnight_summary" in tool_names
     assert "format_core_updates" in tool_names
     assert "format_hot_list_updates" in tool_names
     assert "format_market_updates" in tool_names
-    assert "format_calendar_agenda" in tool_names
 
 
 def test_assemble_draft_briefing_with_string_inputs():
@@ -277,7 +289,7 @@ def test_assemble_draft_briefing_zero_args_and_tool_context():
     res_zero = assemble_draft_briefing()
     assert "error" not in res_zero
     assert "OVERNIGHT SUMMARY" in res_zero["raw_html"]
-    assert "LOOKING AT YOUR DAY AHEAD" in res_zero["raw_html"]
+    assert "LOOKING AT YOUR DAY AHEAD" not in res_zero["raw_html"]
 
     # 2. tool_context state resolution
     class MockToolContext:
