@@ -28,6 +28,7 @@ Implements Phase 3 of the Daily Brief architecture:
 - Implements Rubric Items 1.1 (Docstrings), 1.2 (Naming), 1.3 (Schemas), 1.4 (Guided Error Handling), and 4.2 (Intent vs. Outcome).
 """
 
+import json
 import re
 from datetime import datetime
 from pathlib import Path
@@ -343,8 +344,8 @@ def format_calendar_agenda(calendar_events: list[dict[str, Any]] | None = None) 
 
 @trace_tool(tool_name="assemble_draft_briefing")
 def assemble_draft_briefing(
-    internal_comms_data: dict[str, Any],
-    market_news_data: dict[str, Any],
+    internal_comms_data: dict[str, Any] | str,
+    market_news_data: dict[str, Any] | str,
     hot_list_config_path: str = "config/hot_list.md",
 ) -> dict[str, Any]:
     """Assembles all synthesized sections into a complete DraftBriefingPayload.
@@ -357,8 +358,8 @@ def assemble_draft_briefing(
     5. Looking at your day ahead... (meeting readiness dossier).
 
     Args:
-        internal_comms_data: Serialized InternalHarvestPayload dictionary.
-        market_news_data: Serialized MarketHarvestPayload dictionary.
+        internal_comms_data: Serialized InternalHarvestPayload dictionary or raw text.
+        market_news_data: Serialized MarketHarvestPayload dictionary or raw text.
         hot_list_config_path: Path to config/hot_list.md.
 
     Returns:
@@ -367,12 +368,38 @@ def assemble_draft_briefing(
     try:
         now_sydney = datetime.now(SYDNEY_TZ).isoformat()
 
-        leadership_threads = internal_comms_data.get("leadership_threads", [])
-        direct_report_threads = internal_comms_data.get("direct_report_threads", [])
-        chat_threads = internal_comms_data.get("chat_space_threads", [])
-        calendar_events = internal_comms_data.get("calendar_events", [])
-        hot_list_matches = internal_comms_data.get("hot_list_matches", {})
-        market_items = market_news_data.get("announcements", [])
+        # Defensively resolve internal_comms_data (dict, JSON string, or markdown)
+        internal_dict: dict[str, Any] = {}
+        if isinstance(internal_comms_data, dict):
+            internal_dict = internal_comms_data
+        elif isinstance(internal_comms_data, str):
+            try:
+                parsed_internal = json.loads(internal_comms_data)
+                if isinstance(parsed_internal, dict):
+                    internal_dict = parsed_internal
+            except Exception:
+                internal_dict = {}
+
+        # Defensively resolve market_news_data (dict, JSON string, or markdown)
+        market_dict: dict[str, Any] = {}
+        raw_market_str = ""
+        if isinstance(market_news_data, dict):
+            market_dict = market_news_data
+        elif isinstance(market_news_data, str):
+            raw_market_str = market_news_data
+            try:
+                parsed_market = json.loads(market_news_data)
+                if isinstance(parsed_market, dict):
+                    market_dict = parsed_market
+            except Exception:
+                market_dict = {}
+
+        leadership_threads = internal_dict.get("leadership_threads", [])
+        direct_report_threads = internal_dict.get("direct_report_threads", [])
+        chat_threads = internal_dict.get("chat_space_threads", [])
+        calendar_events = internal_dict.get("calendar_events", [])
+        hot_list_matches = internal_dict.get("hot_list_matches", {})
+        market_items = market_dict.get("announcements", [])
 
         # 1. Synthesize 6-sentence orientation
         orientation = synthesize_overnight_summary(
@@ -394,7 +421,22 @@ def assemble_draft_briefing(
         )
 
         # 4. Market updates
-        market_html = format_market_updates(announcements=market_items)
+        if market_items:
+            market_html = format_market_updates(announcements=market_items)
+        elif raw_market_str and ("<li>" in raw_market_str or "<ul>" in raw_market_str):
+            market_html = raw_market_str
+        elif raw_market_str and any(
+            line.strip().startswith(("- ", "* "))
+            for line in raw_market_str.splitlines()
+        ):
+            bullets = [
+                f"  <li>{line.lstrip('*- ').strip()}</li>"
+                for line in raw_market_str.splitlines()
+                if line.strip().startswith(("- ", "* "))
+            ]
+            market_html = "<ul>\n" + "\n".join(bullets) + "\n</ul>"
+        else:
+            market_html = format_market_updates(announcements=[])
 
         # 5. Calendar agenda
         agenda_html = format_calendar_agenda(calendar_events=calendar_events)

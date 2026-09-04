@@ -54,7 +54,7 @@ window from runtime (Sydney time).
 1. Execute `harvest_all_market_news` (or call individual scanning tools `scan_foundation_models`, `scan_ai_agent_frameworks`, and `scan_cloud_ai_movements`).
 2. Verify that items fall within the trailing 72-hour window.
 3. Classify items into their respective domains with punchy, factual headlines and operational significance.
-4. Output the validated `MarketHarvestPayload` structure to the `market_news_data` state key.
+4. Synthesize the verified market developments into a dense, high-signal executive digest categorized by domain (Foundation Models & Open Weights, AI Agents & Frameworks, Cloud AI/ML Movements). Do not call any state-saving functions.
 """
 
 market_news_agent = Agent(

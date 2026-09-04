@@ -88,19 +88,21 @@ def is_within_lookback_window(
     ref = reference_time or datetime.now(SYDNEY_TZ)
     cutoff = ref - timedelta(hours=lookback_hours)
 
+    clean_str = item_date_str.strip().replace("Z", "+00:00")
+    if len(clean_str) == 10 and clean_str.count("-") == 2:
+        try:
+            dt = datetime.strptime(clean_str, "%Y-%m-%d").replace(
+                tzinfo=SYDNEY_TZ, hour=23, minute=59, second=59
+            )
+            return dt >= cutoff
+        except ValueError:
+            return False
+
     try:
-        # Attempt ISO parsing first
-        dt = datetime.fromisoformat(item_date_str.replace("Z", "+00:00"))
+        dt = datetime.fromisoformat(clean_str)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=SYDNEY_TZ)
         return dt >= cutoff
-    except ValueError:
-        pass
-
-    try:
-        # Fall back to date-only parsing (assumed start of day in Sydney)
-        dt = datetime.strptime(item_date_str[:10], "%Y-%m-%d").replace(tzinfo=SYDNEY_TZ)
-        return dt >= cutoff - timedelta(days=1)
     except ValueError:
         return False
 

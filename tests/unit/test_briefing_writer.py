@@ -247,3 +247,25 @@ def test_briefing_writer_agent_definition():
     assert "format_hot_list_updates" in tool_names
     assert "format_market_updates" in tool_names
     assert "format_calendar_agenda" in tool_names
+
+
+def test_assemble_draft_briefing_with_string_inputs():
+    """Verifies that assemble_draft_briefing handles raw string inputs defensively."""
+    # 1. Test with JSON strings
+    internal_json = (
+        '{"leadership_threads": [], "chat_space_threads": [], "calendar_events": []}'
+    )
+    market_json = '{"announcements": [{"entity": "Anthropic", "headline": "Claude 3.7 Sonnet released", "date": "2026-09-04", "source_url": "https://anthropic.com", "summary": "Hybrid reasoning model."}]}'
+
+    res_json = assemble_draft_briefing(internal_json, market_json)
+    assert "error" not in res_json
+    assert "Claude 3.7 Sonnet released" in res_json["raw_html"]
+
+    # 2. Test with raw markdown strings
+    internal_md = "**Internal Comms Summary**\n- No urgent directives."
+    market_md = "### Market Movements\n- **[Google]** Gemini 2.5 updates deployed.\n- **[AWS]** Bedrock multi-model routing."
+
+    res_md = assemble_draft_briefing(internal_md, market_md)
+    assert "error" not in res_md
+    assert "Gemini 2.5 updates deployed." in res_md["raw_html"]
+    assert "Bedrock multi-model routing." in res_md["raw_html"]
