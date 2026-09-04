@@ -1,0 +1,7 @@
+# Sample Terraform variables file for Daily Brief deployment
+project_id      = "your-gcp-project-id"
+region          = "australia-southeast1"
+environment     = "dev"
+service_name    = "daily-brief"
+container_image = "australia-southeast1-docker.pkg.dev/your-gcp-project-id/daily-brief/agent:latest"
+retention_days  = 7

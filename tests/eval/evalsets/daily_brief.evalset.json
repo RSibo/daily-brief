@@ -1,0 +1,113 @@
+{
+  "eval_set_id": "daily_brief_eval",
+  "name": "Daily Brief Executive Intelligence Evaluation",
+  "description": "Comprehensive evaluation set for validating Chief of Staff tone, 72h market intelligence, Hot List tracking, noise suppression, and silent calendar delivery.",
+  "eval_cases": [
+    {
+      "eval_id": "case_01_standard_morning_brief",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [
+              {
+                "text": "Generate my morning daily brief for today."
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "app",
+        "user_id": "rsibo",
+        "state": {
+          "user_role": "Executive VP AI / Tech Leadership",
+          "preferred_timezone": "Australia/Sydney"
+        }
+      }
+    },
+    {
+      "eval_id": "case_02_hot_list_fallback_verification",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [
+              {
+                "text": "Run the daily brief and verify status of all active hot list priorities."
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "app",
+        "user_id": "rsibo",
+        "state": {
+          "mock_hot_list_silent": true
+        }
+      }
+    },
+    {
+      "eval_id": "case_03_noise_suppression_under_high_volume",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [
+              {
+                "text": "Please summarize overnight comms and filter out any non-urgent chatter."
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "app",
+        "user_id": "rsibo",
+        "state": {
+          "noise_filtering_strict": true
+        }
+      }
+    },
+    {
+      "eval_id": "case_04_ai_market_intelligence_72h",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [
+              {
+                "text": "Provide the daily AI market movements from the trailing 72 hours focusing on new architectures and frontier model signals."
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "app",
+        "user_id": "rsibo",
+        "state": {
+          "market_persona": "Head of AI/ML"
+        }
+      }
+    },
+    {
+      "eval_id": "case_05_calendar_agenda_exclusion",
+      "conversation": [
+        {
+          "user_content": {
+            "parts": [
+              {
+                "text": "Create the executive briefing and ensure meeting schedules are gathered but omitted from the briefing text."
+              }
+            ]
+          }
+        }
+      ],
+      "session_input": {
+        "app_name": "app",
+        "user_id": "rsibo",
+        "state": {
+          "omit_calendar_agenda": true
+        }
+      }
+    }
+  ]
+}

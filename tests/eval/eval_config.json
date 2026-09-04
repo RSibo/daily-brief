@@ -1,19 +1,41 @@
 {
   "criteria": {
     "rubric_based_final_response_quality_v1": {
-      "threshold": 0.8,
+      "threshold": 0.85,
       "judgeModelOptions": {
         "judgeModel": "gemini-flash-latest",
         "numSamples": 1
       },
       "rubrics": [
         {
-          "rubricId": "relevance",
-          "rubricContent": { "textProperty": "The response directly addresses the user's query." }
+          "rubricId": "executive_tone_and_format",
+          "rubricContent": {
+            "textProperty": "The briefing strictly maintains a calm Chief of Staff tone. The overnight summary is exactly six plain-text sentences without bolding inside the summary body. There are zero emojis, zero hyperbole, and zero sensationalized phrases."
+          }
         },
         {
-          "rubricId": "helpfulness",
-          "rubricContent": { "textProperty": "The response is helpful and provides useful information." }
+          "rubricId": "noise_suppression_and_prioritization",
+          "rubricContent": {
+            "textProperty": "The response filters out routine chatter and low-priority messages, prioritizing leadership directives and actionable escalations."
+          }
+        },
+        {
+          "rubricId": "hot_list_fallback_fidelity",
+          "rubricContent": {
+            "textProperty": "All active Hot List priorities are accounted for. If a topic has no unread messages in the trailing 3 days, it outputs the exact fallback format: 'On topic [Topic] no updates yet.'"
+          }
+        },
+        {
+          "rubricId": "market_news_freshness_and_depth",
+          "rubricContent": {
+            "textProperty": "AI market intelligence reflects technical breakthroughs (architectures, reasoning, systems scaling) suitable for a Head of AI/ML, strictly within the trailing 72-hour window."
+          }
+        },
+        {
+          "rubricId": "calendar_agenda_exclusion",
+          "rubricContent": {
+            "textProperty": "The briefing text strictly omits calendar agenda sections and meeting schedules per executive privacy and focus requirements."
+          }
         }
       ]
     }
