@@ -269,3 +269,49 @@ def test_assemble_draft_briefing_with_string_inputs():
     assert "error" not in res_md
     assert "Gemini 2.5 updates deployed." in res_md["raw_html"]
     assert "Bedrock multi-model routing." in res_md["raw_html"]
+
+
+def test_assemble_draft_briefing_zero_args_and_tool_context():
+    """Verifies that assemble_draft_briefing works with 0 args and resolves from tool_context."""
+    # 1. 0 args call
+    res_zero = assemble_draft_briefing()
+    assert "error" not in res_zero
+    assert "OVERNIGHT SUMMARY" in res_zero["raw_html"]
+    assert "LOOKING AT YOUR DAY AHEAD" in res_zero["raw_html"]
+
+    # 2. tool_context state resolution
+    class MockToolContext:
+        def __init__(self):
+            self.state = {
+                "internal_comms_data": {
+                    "leadership_threads": [
+                        {
+                            "thread_id": "t-100",
+                            "sender_name": "Simon Elisha",
+                            "subject": "FY27 Strategy",
+                            "deep_link": "https://mail.google.com",
+                            "snippet": "Planning session next week.",
+                        }
+                    ],
+                    "calendar_events": [],
+                },
+                "market_news_data": {
+                    "announcements": [
+                        {
+                            "entity": "Anthropic",
+                            "headline": "Claude Sonnet update",
+                            "date": "2026-09-04",
+                            "source_url": "https://anthropic.com",
+                            "summary": "Reasoning benchmark win.",
+                        }
+                    ]
+                },
+            }
+
+    ctx = MockToolContext()
+    res_ctx = assemble_draft_briefing(tool_context=ctx)
+    assert "error" not in res_ctx
+    assert "Simon Elisha" in res_ctx["raw_html"]
+    assert "Claude Sonnet update" in res_ctx["raw_html"]
+    assert "draft_briefing" in ctx.state
+    assert ctx.state["draft_briefing"]["raw_html"] == res_ctx["raw_html"]

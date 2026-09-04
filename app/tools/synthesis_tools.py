@@ -35,6 +35,8 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from google.adk.tools import ToolContext
+
 from app.app_utils.telemetry import trace_tool
 from app.app_utils.typing import DraftBriefingPayload, StructuredToolError
 
@@ -344,9 +346,10 @@ def format_calendar_agenda(calendar_events: list[dict[str, Any]] | None = None) 
 
 @trace_tool(tool_name="assemble_draft_briefing")
 def assemble_draft_briefing(
-    internal_comms_data: dict[str, Any] | str,
-    market_news_data: dict[str, Any] | str,
+    internal_comms_data: dict[str, Any] | str | None = None,
+    market_news_data: dict[str, Any] | str | None = None,
     hot_list_config_path: str = "config/hot_list.md",
+    tool_context: ToolContext | None = None,
 ) -> dict[str, Any]:
     """Assembles all synthesized sections into a complete DraftBriefingPayload.
 
@@ -358,15 +361,32 @@ def assemble_draft_briefing(
     5. Looking at your day ahead... (meeting readiness dossier).
 
     Args:
-        internal_comms_data: Serialized InternalHarvestPayload dictionary or raw text.
-        market_news_data: Serialized MarketHarvestPayload dictionary or raw text.
+        internal_comms_data: Optional serialized InternalHarvestPayload dictionary or raw text.
+            If omitted, automatically loaded from tool_context.state["internal_comms_data"].
+        market_news_data: Optional serialized MarketHarvestPayload dictionary or raw text.
+            If omitted, automatically loaded from tool_context.state["market_news_data"].
         hot_list_config_path: Path to config/hot_list.md.
+        tool_context: Optional ADK ToolContext for state retrieval and updates.
 
     Returns:
         Serialized DraftBriefingPayload dictionary conforming to schemas.
     """
     try:
         now_sydney = datetime.now(SYDNEY_TZ).isoformat()
+
+        # If arguments are omitted, resolve directly from tool_context state if available
+        if (
+            internal_comms_data is None
+            and tool_context is not None
+            and hasattr(tool_context, "state")
+        ):
+            internal_comms_data = tool_context.state.get("internal_comms_data", {})
+        if (
+            market_news_data is None
+            and tool_context is not None
+            and hasattr(tool_context, "state")
+        ):
+            market_news_data = tool_context.state.get("market_news_data", {})
 
         # Defensively resolve internal_comms_data (dict, JSON string, or markdown)
         internal_dict: dict[str, Any] = {}
@@ -466,7 +486,11 @@ def assemble_draft_briefing(
             generated_at=now_sydney,
         )
 
-        return payload.model_dump()
+        serialized = payload.model_dump()
+        if tool_context is not None and hasattr(tool_context, "state"):
+            tool_context.state["draft_briefing"] = serialized
+
+        return serialized
 
     except Exception as exc:
         error = StructuredToolError(

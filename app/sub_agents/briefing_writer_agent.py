@@ -59,10 +59,10 @@ You must assemble the briefing following this exact 5-section sequence:
 - Every claim, thread, and announcement must be backed by a verified canonical hyperlink.
 
 ### Execution Instructions:
-1. Read `{{internal_comms_data}}` and `{{market_news_data}}` from session state.
-2. Call `assemble_draft_briefing` (or individual section synthesis tools) to compile the draft.
-3. Verify that all 5 sections follow the required format and mandatory strings.
-4. Output the structured `DraftBriefingPayload` to state key `draft_briefing`.
+1. Synthesize all communications and market updates into the complete 5-section executive briefing following the exact sequence.
+2. If calling `assemble_draft_briefing`, call it with zero arguments: `assemble_draft_briefing()`, as it automatically loads from session state.
+3. Strict Tool Calling Rule: Always invoke tools strictly by their exact declared function names (e.g. `assemble_draft_briefing`). NEVER prepend "call:", "default_api:", or any namespace prefix.
+4. Emit the synthesized 5-section executive briefing directly in clean HTML in your response. Do NOT call any state-saving functions.
 """
 
 briefing_writer_agent = Agent(
