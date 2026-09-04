@@ -19,7 +19,7 @@ Implements Phase 2 of the Daily Brief architecture:
     1. Foundation Models & Open Weights (DeepMind, OpenAI, Anthropic, Meta, Mistral, Qwen, DeepSeek).
     2. AI Agents & Frameworks (ADK, LangGraph, CrewAI, AutoGen, enterprise agent tooling).
     3. Cloud AI/ML Movements (Google Cloud, AWS, Azure, CoreWeave AI silicon/clusters).
-- Strictly enforces a trailing 48-hour window from runtime in Sydney time.
+- Strictly enforces a trailing 72-hour window from runtime in Sydney time.
 - Aggressively filters non-AI infrastructure, clickbait, speculative hype, and geopolitical noise.
 - Validates canonical source citations and verified primary benchmarks.
 - Implements Rubric Items 1.1 (Docstrings), 1.2 (Naming), 1.3 (Schemas), 1.4 (Guided Error Handling), and 4.2 (Intent vs. Outcome).
@@ -81,7 +81,7 @@ def is_clickbait_or_noise(text: str) -> bool:
 
 def is_within_lookback_window(
     item_date_str: str,
-    lookback_hours: int = 48,
+    lookback_hours: int = 72,
     reference_time: datetime | None = None,
 ) -> bool:
     """Validates whether an ISO timestamp or YYYY-MM-DD date falls within the lookback window."""
@@ -183,14 +183,14 @@ DEFAULT_MARKET_INTELLIGENCE: list[dict[str, Any]] = [
 
 
 @trace_tool(tool_name="scan_foundation_models")
-def scan_foundation_models(lookback_hours: int = 48) -> list[dict[str, Any]]:
+def scan_foundation_models(lookback_hours: int = 72) -> list[dict[str, Any]]:
     """Scans verified announcements for Foundation Models and Open Weights.
 
     Focuses on frontier labs (Google DeepMind, Anthropic, OpenAI, Meta Llama,
     Mistral, DeepSeek, Qwen) within the strict lookback window.
 
     Args:
-        lookback_hours: Enforced lookback window duration in hours (default 48).
+        lookback_hours: Enforced lookback window duration in hours (default 72).
 
     Returns:
         A list of verified MarketItem dictionaries for foundation models.
@@ -233,14 +233,14 @@ def scan_foundation_models(lookback_hours: int = 48) -> list[dict[str, Any]]:
 
 
 @trace_tool(tool_name="scan_ai_agent_frameworks")
-def scan_ai_agent_frameworks(lookback_hours: int = 48) -> list[dict[str, Any]]:
+def scan_ai_agent_frameworks(lookback_hours: int = 72) -> list[dict[str, Any]]:
     """Scans verified updates across AI Agents and Multi-Agent Orchestration Frameworks.
 
     Focuses on Google ADK, LangGraph, CrewAI, AutoGen, and enterprise agent systems
     within the strict lookback window.
 
     Args:
-        lookback_hours: Enforced lookback window duration in hours (default 48).
+        lookback_hours: Enforced lookback window duration in hours (default 72).
 
     Returns:
         A list of verified MarketItem dictionaries for agent frameworks.
@@ -283,7 +283,7 @@ def scan_ai_agent_frameworks(lookback_hours: int = 48) -> list[dict[str, Any]]:
 
 
 @trace_tool(tool_name="scan_cloud_ai_movements")
-def scan_cloud_ai_movements(lookback_hours: int = 48) -> list[dict[str, Any]]:
+def scan_cloud_ai_movements(lookback_hours: int = 72) -> list[dict[str, Any]]:
     """Scans hyperscaler AI/ML platform, accelerator, and silicon developments.
 
     Focuses on Google Cloud Vertex AI / TPUs, AWS Bedrock / Trainium, Azure AI Foundry / Maia,
@@ -291,7 +291,7 @@ def scan_cloud_ai_movements(lookback_hours: int = 48) -> list[dict[str, Any]]:
     Strictly filters out non-AI commodity infrastructure.
 
     Args:
-        lookback_hours: Enforced lookback window duration in hours (default 48).
+        lookback_hours: Enforced lookback window duration in hours (default 72).
 
     Returns:
         A list of verified MarketItem dictionaries for Cloud AI movements.
@@ -334,15 +334,15 @@ def scan_cloud_ai_movements(lookback_hours: int = 48) -> list[dict[str, Any]]:
 
 
 @trace_tool(tool_name="harvest_all_market_news")
-def harvest_all_market_news(lookback_hours: int = 48) -> dict[str, Any]:
+def harvest_all_market_news(lookback_hours: int = 72) -> dict[str, Any]:
     """Orchestrates comprehensive scanning across all 3 AI market domains.
 
     Aggregates Foundation Models, AI Agent Frameworks, and Cloud AI/ML movements.
-    Enforces strict 48-hour Sydney lookback boundaries, filters noise and clickbait,
+    Enforces strict 72-hour Sydney lookback boundaries, filters noise and clickbait,
     and returns a structured MarketHarvestPayload dictionary.
 
     Args:
-        lookback_hours: Window duration in hours to scan (default: 48).
+        lookback_hours: Window duration in hours to scan (default: 72).
 
     Returns:
         Serialized MarketHarvestPayload dictionary adhering to schema standards.

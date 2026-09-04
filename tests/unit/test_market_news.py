@@ -65,34 +65,34 @@ def test_clickbait_and_noise_filtering():
 
 
 def test_lookback_window_enforcement():
-    """Verifies strict adherence to the trailing 48-hour window."""
+    """Verifies strict adherence to the trailing 72-hour window."""
     now = datetime.now(SYDNEY_TZ)
 
     # 12 hours ago -> should pass
     recent_date = (now - timedelta(hours=12)).strftime("%Y-%m-%d")
     assert (
-        is_within_lookback_window(recent_date, lookback_hours=48, reference_time=now)
+        is_within_lookback_window(recent_date, lookback_hours=72, reference_time=now)
         is True
     )
 
-    # 40 hours ago -> should pass
-    valid_date = (now - timedelta(hours=40)).strftime("%Y-%m-%d")
+    # 60 hours ago -> should pass under 72h window
+    valid_date = (now - timedelta(hours=60)).strftime("%Y-%m-%d")
     assert (
-        is_within_lookback_window(valid_date, lookback_hours=48, reference_time=now)
+        is_within_lookback_window(valid_date, lookback_hours=72, reference_time=now)
         is True
     )
 
     # 5 days ago -> should fail
     old_date = (now - timedelta(days=5)).strftime("%Y-%m-%d")
     assert (
-        is_within_lookback_window(old_date, lookback_hours=48, reference_time=now)
+        is_within_lookback_window(old_date, lookback_hours=72, reference_time=now)
         is False
     )
 
 
 def test_scan_foundation_models():
     """Verifies that foundation model scanner returns valid MarketItems with URLs."""
-    items = scan_foundation_models(lookback_hours=48)
+    items = scan_foundation_models(lookback_hours=72)
     assert len(items) > 0
 
     for item_dict in items:
@@ -106,7 +106,7 @@ def test_scan_foundation_models():
 
 def test_scan_ai_agent_frameworks():
     """Verifies that AI agent framework scanner returns valid items."""
-    items = scan_ai_agent_frameworks(lookback_hours=48)
+    items = scan_ai_agent_frameworks(lookback_hours=72)
     assert len(items) > 0
 
     for item_dict in items:
@@ -118,7 +118,7 @@ def test_scan_ai_agent_frameworks():
 
 def test_scan_cloud_ai_movements():
     """Verifies that cloud AI scanner focuses exclusively on AI/ML platforms and silicon."""
-    items = scan_cloud_ai_movements(lookback_hours=48)
+    items = scan_cloud_ai_movements(lookback_hours=72)
     assert len(items) > 0
 
     for item_dict in items:
@@ -129,11 +129,11 @@ def test_scan_cloud_ai_movements():
 
 def test_harvest_all_market_news_payload_schema():
     """Verifies composite harvest returns a valid MarketHarvestPayload."""
-    payload_dict = harvest_all_market_news(lookback_hours=48)
+    payload_dict = harvest_all_market_news(lookback_hours=72)
     assert "error" not in payload_dict
 
     payload = MarketHarvestPayload(**payload_dict)
-    assert payload.lookback_hours == 48
+    assert payload.lookback_hours == 72
     assert len(payload.announcements) >= 3
 
     domains_present = {item.domain for item in payload.announcements}

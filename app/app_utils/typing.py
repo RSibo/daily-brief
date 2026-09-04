@@ -138,7 +138,7 @@ class MarketItem(BaseModel):
     )
     summary: str = Field(..., description="Operational and commercial significance")
     source_url: str = Field(..., description="Canonical source citation URL")
-    date: str = Field(..., description="Announcement date within the 48-hour window")
+    date: str = Field(..., description="Announcement date within the 72-hour window")
     verified: bool = Field(
         default=True,
         description="Whether the update has been confirmed by a primary source",
@@ -146,13 +146,13 @@ class MarketItem(BaseModel):
 
 
 class MarketHarvestPayload(BaseModel):
-    """Payload produced by the market_news_agent covering the trailing 48-hour window."""
+    """Payload produced by the market_news_agent covering the trailing 72-hour window."""
 
     harvest_timestamp: str = Field(
         ..., description="Timestamp when the market scan was conducted"
     )
     lookback_hours: int = Field(
-        default=48, description="Enforced lookback window duration in hours"
+        default=72, description="Enforced lookback window duration in hours"
     )
     announcements: list[MarketItem] = Field(
         default_factory=list,

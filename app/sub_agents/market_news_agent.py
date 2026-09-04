@@ -16,7 +16,7 @@
 
 Part of Stage 1 (Parallel Harvesting) in the Daily Brief architecture:
 Scans verified external generative AI developments, model releases, agent frameworks,
-and cloud AI movements over the strict 48-hour trailing window (Sydney time).
+and cloud AI movements over the strict 72-hour trailing window (Sydney time).
 Outputs structured MarketHarvestPayload to session state key 'market_news_data'.
 """
 
@@ -37,7 +37,7 @@ MARKET_NEWS_INSTRUCTION = f"""
 
 ### Role & Objective:
 You are the `market_news_agent`. Your job is to harvest, verify, and structure
-external generative AI and cloud AI movements announced over the trailing 48-hour
+external generative AI and cloud AI movements announced over the trailing 72-hour
 window from runtime (Sydney time).
 
 ### Coverage Domains:
@@ -52,7 +52,7 @@ window from runtime (Sydney time).
 
 ### Execution Instructions:
 1. Execute `harvest_all_market_news` (or call individual scanning tools `scan_foundation_models`, `scan_ai_agent_frameworks`, and `scan_cloud_ai_movements`).
-2. Verify that items fall within the trailing 48-hour window.
+2. Verify that items fall within the trailing 72-hour window.
 3. Classify items into their respective domains with punchy, factual headlines and operational significance.
 4. Output the validated `MarketHarvestPayload` structure to the `market_news_data` state key.
 """

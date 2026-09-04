@@ -16,7 +16,7 @@
 
 Usage:
     uv run python -m tests.manual.run_market_news
-    uv run python tests/manual/run_market_news.py --lookback 48
+    uv run python tests/manual/run_market_news.py --lookback 72
 """
 
 import argparse
@@ -38,8 +38,8 @@ def main() -> None:
     parser.add_argument(
         "--lookback",
         type=int,
-        default=48,
-        help="Lookback window duration in hours (default: 48).",
+        default=72,
+        help="Lookback window duration in hours (default: 72).",
     )
     args = parser.parse_args()
 
