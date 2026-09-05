@@ -25,6 +25,7 @@ Implements Phase 2 of the Daily Brief architecture:
 - Implements Rubric Items 1.1 (Docstrings), 1.2 (Naming), 1.3 (Schemas), 1.4 (Guided Error Handling), and 4.2 (Intent vs. Outcome).
 """
 
+import json
 import re
 from datetime import datetime, timedelta
 from typing import Any
@@ -86,7 +87,7 @@ def is_within_lookback_window(
     lookback_hours: int = 72,
     reference_time: datetime | None = None,
 ) -> bool:
-    """Validates whether an ISO timestamp or YYYY-MM-DD date falls within the lookback window."""
+    """Validates whether an ISO timestamp or date string falls within the lookback window."""
     ref = reference_time or datetime.now(SYDNEY_TZ)
     cutoff = ref - timedelta(hours=lookback_hours)
 
@@ -98,7 +99,7 @@ def is_within_lookback_window(
             )
             return dt >= cutoff
         except ValueError:
-            return False
+            pass
 
     try:
         dt = datetime.fromisoformat(clean_str)
@@ -106,7 +107,18 @@ def is_within_lookback_window(
             dt = dt.replace(tzinfo=SYDNEY_TZ)
         return dt >= cutoff
     except ValueError:
-        return False
+        pass
+
+    for fmt in ("%B %d, %Y", "%d %B %Y", "%b %d, %Y", "%d %b %Y"):
+        try:
+            dt = datetime.strptime(clean_str, fmt).replace(
+                tzinfo=SYDNEY_TZ, hour=23, minute=59, second=59
+            )
+            return dt >= cutoff
+        except ValueError:
+            continue
+
+    return False
 
 
 # High-fidelity verifiable market baseline items for testing and resilient fallback
@@ -187,18 +199,24 @@ DEFAULT_MARKET_INTELLIGENCE: list[dict[str, Any]] = [
 
 
 @trace_tool(tool_name="scan_foundation_models")
-def scan_foundation_models(lookback_hours: int = 72) -> list[dict[str, Any]]:
+def scan_foundation_models(
+    lookback_hours: int = 72, mock: bool = True
+) -> list[dict[str, Any]]:
     """Scans verified announcements for Foundation Models and Open Weights.
 
     Focuses on frontier labs (Google DeepMind, Anthropic, OpenAI, Meta Llama,
     Mistral, DeepSeek, Qwen) within the strict lookback window.
+    Operates using baseline testing fixtures when mock=True.
 
     Args:
         lookback_hours: Enforced lookback window duration in hours (default 72).
+        mock: Whether to use baseline test fixtures (default True for offline tests).
 
     Returns:
         A list of verified MarketItem dictionaries for foundation models.
     """
+    if not mock:
+        return []
     now = datetime.now(SYDNEY_TZ)
     items: list[dict[str, Any]] = []
 
@@ -237,18 +255,23 @@ def scan_foundation_models(lookback_hours: int = 72) -> list[dict[str, Any]]:
 
 
 @trace_tool(tool_name="scan_ai_agent_frameworks")
-def scan_ai_agent_frameworks(lookback_hours: int = 72) -> list[dict[str, Any]]:
+def scan_ai_agent_frameworks(
+    lookback_hours: int = 72, mock: bool = True
+) -> list[dict[str, Any]]:
     """Scans verified updates across AI Agents and Multi-Agent Orchestration Frameworks.
 
     Focuses on Google ADK, LangGraph, CrewAI, AutoGen, and enterprise agent systems
-    within the strict lookback window.
+    within the strict lookback window. Operates using baseline testing fixtures when mock=True.
 
     Args:
         lookback_hours: Enforced lookback window duration in hours (default 72).
+        mock: Whether to use baseline test fixtures (default True for offline tests).
 
     Returns:
         A list of verified MarketItem dictionaries for agent frameworks.
     """
+    if not mock:
+        return []
     now = datetime.now(SYDNEY_TZ)
     items: list[dict[str, Any]] = []
 
@@ -287,19 +310,25 @@ def scan_ai_agent_frameworks(lookback_hours: int = 72) -> list[dict[str, Any]]:
 
 
 @trace_tool(tool_name="scan_cloud_ai_movements")
-def scan_cloud_ai_movements(lookback_hours: int = 72) -> list[dict[str, Any]]:
+def scan_cloud_ai_movements(
+    lookback_hours: int = 72, mock: bool = True
+) -> list[dict[str, Any]]:
     """Scans hyperscaler AI/ML platform, accelerator, and silicon developments.
 
     Focuses on Google Cloud Vertex AI / TPUs, AWS Bedrock / Trainium, Azure AI Foundry / Maia,
     and CoreWeave AI infrastructure within the strict lookback window.
     Strictly filters out non-AI commodity infrastructure.
+    Operates using baseline testing fixtures when mock=True.
 
     Args:
         lookback_hours: Enforced lookback window duration in hours (default 72).
+        mock: Whether to use baseline test fixtures (default True for offline tests).
 
     Returns:
         A list of verified MarketItem dictionaries for Cloud AI movements.
     """
+    if not mock:
+        return []
     now = datetime.now(SYDNEY_TZ)
     items: list[dict[str, Any]] = []
 
@@ -340,8 +369,9 @@ def scan_cloud_ai_movements(lookback_hours: int = 72) -> list[dict[str, Any]]:
 @trace_tool(tool_name="harvest_all_market_news")
 def harvest_all_market_news(
     lookback_hours: int = 72,
-    scanned_items: list[dict[str, Any]] | None = None,
+    scanned_items: list[dict[str, Any]] | str | None = None,
     tool_context: ToolContext | None = None,
+    mock: bool = False,
 ) -> dict[str, Any]:
     """Orchestrates comprehensive scanning across all 3 AI market domains.
 
@@ -351,8 +381,9 @@ def harvest_all_market_news(
 
     Args:
         lookback_hours: Window duration in hours to scan (default: 72).
-        scanned_items: Optional list of scanned market item dictionaries (e.g. from live search).
+        scanned_items: Optional list of scanned market item dictionaries (or JSON string) from live search.
         tool_context: Optional ADK tool context for session state access.
+        mock: If True, falls back to baseline test fixtures when scanned_items is empty. Defaults to False.
 
     Returns:
         Serialized MarketHarvestPayload dictionary adhering to schema standards.
@@ -361,8 +392,21 @@ def harvest_all_market_news(
         now = datetime.now(SYDNEY_TZ)
         all_announcements: list[MarketItem] = []
 
-        if scanned_items:
-            for item_dict in scanned_items:
+        raw_items: list[dict[str, Any]] = []
+        if isinstance(scanned_items, str):
+            try:
+                parsed = json.loads(scanned_items)
+                if isinstance(parsed, list):
+                    raw_items = parsed
+            except Exception:
+                raw_items = []
+        elif isinstance(scanned_items, list):
+            raw_items = scanned_items
+
+        if raw_items:
+            for item_dict in raw_items:
+                if not isinstance(item_dict, dict):
+                    continue
                 date_val = str(item_dict.get("date", now.strftime("%Y-%m-%d")))
                 if not is_within_lookback_window(
                     date_val, lookback_hours=lookback_hours, reference_time=now
@@ -377,19 +421,21 @@ def harvest_all_market_news(
                 except Exception:
                     continue
 
-        if not all_announcements:
-            # Domain 1: Foundation Models & Open Weights
-            fm_raw = scan_foundation_models(lookback_hours=lookback_hours)
+        if not all_announcements and mock:
+            # Baseline test fixtures used exclusively when mock=True (e.g. for offline unit testing)
+            fm_raw = scan_foundation_models(lookback_hours=lookback_hours, mock=True)
             for item in fm_raw:
                 all_announcements.append(MarketItem(**item))
 
-            # Domain 2: AI Agents & Frameworks
-            agents_raw = scan_ai_agent_frameworks(lookback_hours=lookback_hours)
+            agents_raw = scan_ai_agent_frameworks(
+                lookback_hours=lookback_hours, mock=True
+            )
             for item in agents_raw:
                 all_announcements.append(MarketItem(**item))
 
-            # Domain 3: Cloud AI/ML Movements
-            cloud_raw = scan_cloud_ai_movements(lookback_hours=lookback_hours)
+            cloud_raw = scan_cloud_ai_movements(
+                lookback_hours=lookback_hours, mock=True
+            )
             for item in cloud_raw:
                 all_announcements.append(MarketItem(**item))
 

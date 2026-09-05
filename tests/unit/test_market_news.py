@@ -128,8 +128,8 @@ def test_scan_cloud_ai_movements():
 
 
 def test_harvest_all_market_news_payload_schema():
-    """Verifies composite harvest returns a valid MarketHarvestPayload."""
-    payload_dict = harvest_all_market_news(lookback_hours=72)
+    """Verifies composite harvest returns a valid MarketHarvestPayload in mock mode."""
+    payload_dict = harvest_all_market_news(lookback_hours=72, mock=True)
     assert "error" not in payload_dict
 
     payload = MarketHarvestPayload(**payload_dict)
@@ -142,14 +142,38 @@ def test_harvest_all_market_news_payload_schema():
     assert "cloud_ai_ml" in domains_present
 
 
+def test_harvest_all_market_news_live_mode_empty_without_scanned_items():
+    """Verifies that in production (mock=False), no hardcoded test data is injected."""
+    payload = harvest_all_market_news(lookback_hours=72, mock=False)
+    assert len(payload["announcements"]) == 0
+
+
+def test_harvest_all_market_news_with_scanned_items():
+    """Verifies that live search items passed to harvest_all_market_news are properly validated and structured."""
+    now = datetime.now(SYDNEY_TZ).strftime("%Y-%m-%d")
+    scanned = [
+        {
+            "domain": "foundation_models",
+            "entity": "Google DeepMind",
+            "headline": "Gemini 2.5 Flash updates deployed with expanded tool calling",
+            "summary": "Enhanced low-latency endpoints with native agent tool execution.",
+            "source_url": "https://blog.google/technology/ai/gemini-2-5-model-updates/",
+            "date": now,
+            "verified": True,
+        }
+    ]
+    payload = harvest_all_market_news(
+        lookback_hours=72, scanned_items=scanned, mock=False
+    )
+    assert len(payload["announcements"]) == 1
+    assert payload["announcements"][0]["entity"] == "Google DeepMind"
+
+
 def test_market_news_agent_definition():
     """Verifies ADK agent configuration for market_news_agent."""
     assert market_news_agent.name == "market_news_agent"
     assert market_news_agent.output_key == "market_news_data"
-    assert len(market_news_agent.tools) == 5
+    assert len(market_news_agent.tools) == 2
     tool_names = [getattr(t, "__name__", str(t)) for t in market_news_agent.tools]
     assert "harvest_all_market_news" in tool_names
-    assert "scan_foundation_models" in tool_names
-    assert "scan_ai_agent_frameworks" in tool_names
-    assert "scan_cloud_ai_movements" in tool_names
     assert any("google_search" in str(t).lower() for t in market_news_agent.tools)

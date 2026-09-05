@@ -122,7 +122,9 @@ def test_end_to_end_pipeline_all_phases_progression() -> None:
     assert len(context.state["internal_comms_data"]["chat_space_threads"]) >= 1
 
     # Harvest Market News (Technical Head of AI/ML persona)
-    market_result = harvest_all_market_news(lookback_hours=72, tool_context=context)
+    market_result = harvest_all_market_news(
+        lookback_hours=72, tool_context=context, mock=True
+    )
     assert isinstance(market_result, dict)
     assert "market_news_data" in context.state, (
         "market_news_data missing from session state"

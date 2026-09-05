@@ -26,6 +26,7 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from app.app_utils.typing import MarketHarvestPayload
+from app.sub_agents.market_news_agent import run_market_news_agent
 from app.tools.market_news_tools import harvest_all_market_news
 
 SYDNEY_TZ = ZoneInfo("Australia/Sydney")
@@ -41,15 +42,29 @@ def main() -> None:
         default=72,
         help="Lookback window duration in hours (default: 72).",
     )
+    parser.add_argument(
+        "--mock",
+        action="store_true",
+        help="Use mock baseline test fixtures instead of live ADK Google Search.",
+    )
     args = parser.parse_args()
 
     sydney_now = datetime.now(SYDNEY_TZ).strftime("%Y-%m-%d %H:%M:%S %Z")
     print("=" * 80)
     print(f"[*] Starting Market News Harvest (Sydney Time: {sydney_now})")
+    print(
+        f"[*] Mode: {'MOCK TEST FIXTURES' if args.mock else 'LIVE ADK GOOGLE SEARCH'}"
+    )
     print(f"[*] Enforcing Trailing {args.lookback}-Hour Window...")
     print("=" * 80)
 
-    raw_payload = harvest_all_market_news(lookback_hours=args.lookback)
+    if args.mock:
+        raw_payload = harvest_all_market_news(lookback_hours=args.lookback, mock=True)
+    else:
+        print("[*] Executing market_news_agent with live Google Search...")
+        raw_payload = run_market_news_agent(
+            lookback_hours=args.lookback, allow_mock_fallback=False
+        )
 
     if "error" in raw_payload:
         print(

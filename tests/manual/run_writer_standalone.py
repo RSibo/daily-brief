@@ -27,7 +27,6 @@ from zoneinfo import ZoneInfo
 
 from app.app_utils.typing import DraftBriefingPayload
 from app.tools.internal_comms_tools import harvest_all_internal_communications
-from app.tools.market_news_tools import harvest_all_market_news
 from app.tools.synthesis_tools import assemble_draft_briefing
 
 SYDNEY_TZ = ZoneInfo("Australia/Sydney")
@@ -49,10 +48,14 @@ def main() -> None:
     print("=" * 80)
 
     if args.live:
+        from app.sub_agents.market_news_agent import run_market_news_agent
+
         print("[*] Harvesting internal communications (24h window)...")
         internal_data = harvest_all_internal_communications(lookback_hours=24)
-        print("[*] Harvesting market news intelligence (72h window)...")
-        market_data = harvest_all_market_news(lookback_hours=72)
+        print(
+            "[*] Harvesting market news intelligence via live Google Search (72h window)..."
+        )
+        market_data = run_market_news_agent(lookback_hours=72, allow_mock_fallback=True)
     else:
         print("[*] Using synthetic high-fidelity fixture data...")
         internal_data = {
