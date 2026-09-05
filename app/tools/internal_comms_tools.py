@@ -59,6 +59,9 @@ LEADERSHIP_USERNAMES = [
     "carrietharp",
     "karanb",
     "moeab",
+    "kbindlish",
+    "williamtsoi",
+    "youngguyun",
 ]
 
 DIRECT_REPORT_USERNAMES = [
