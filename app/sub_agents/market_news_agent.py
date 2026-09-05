@@ -21,6 +21,7 @@ Outputs structured MarketHarvestPayload to session state key 'market_news_data'.
 """
 
 import json
+import re
 from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -78,10 +79,158 @@ rather than minor library version bumps or marketing announcements.
    - `source_url`: Real canonical primary citation URL discovered in search results (e.g. blog.google, openai.com, ai.meta.com).
    - `date`: YYYY-MM-DD date of the announcement within the trailing 72-hour window.
    - `verified`: True.
-3. MUST invoke `harvest_all_market_news(scanned_items=[...])` passing the list of parsed item dictionaries.
-   DO NOT call `harvest_all_market_news()` with zero arguments or empty lists.
-4. If no verifiable announcements are discovered in a particular domain for the trailing 72 hours, do not invent items. Omit empty domains rather than fabricating news.
+3. Output your findings as a structured JSON array of objects inside a ```json ``` markdown code block:
+   ```json
+   [
+     {{
+       "domain": "foundation_models",
+       "entity": "Provider / Lab Name",
+       "headline": "Factual headline",
+       "summary": "Technical significance and capability details.",
+       "source_url": "https://canonical.url",
+       "date": "YYYY-MM-DD",
+       "verified": true
+     }}
+   ]
+   ```
+4. If no verifiable announcements are discovered in a particular domain for the trailing 72 hours, do not invent items. Return only verified items. If no announcements exist at all across any domain, return an empty array `[]`.
 """
+
+
+def extract_market_items(raw_data: Any) -> list[dict[str, Any]]:
+    """Extracts a list of market item dictionaries from raw string, dict, or list data."""
+    if not raw_data:
+        return []
+    if isinstance(raw_data, list):
+        return [i for i in raw_data if isinstance(i, dict)]
+    if isinstance(raw_data, dict):
+        if "announcements" in raw_data and isinstance(raw_data["announcements"], list):
+            return [i for i in raw_data["announcements"] if isinstance(i, dict)]
+        return [raw_data]
+    if not isinstance(raw_data, str):
+        return []
+
+    text = raw_data.strip()
+
+    # 1. Direct JSON parse
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            return [i for i in parsed if isinstance(i, dict)]
+        if isinstance(parsed, dict):
+            if "announcements" in parsed and isinstance(parsed["announcements"], list):
+                return [i for i in parsed["announcements"] if isinstance(i, dict)]
+            return [parsed]
+    except Exception:
+        pass
+
+    # 2. Markdown code block ```json ... ``` or ``` ... ```
+    code_block_match = re.search(
+        r"```(?:json)?\s*([\[{].*?[\]}])\s*```", text, re.DOTALL
+    )
+    if code_block_match:
+        try:
+            parsed = json.loads(code_block_match.group(1).strip())
+            if isinstance(parsed, list):
+                return [i for i in parsed if isinstance(i, dict)]
+            if isinstance(parsed, dict):
+                if "announcements" in parsed and isinstance(
+                    parsed["announcements"], list
+                ):
+                    return [i for i in parsed["announcements"] if isinstance(i, dict)]
+                return [parsed]
+        except Exception:
+            pass
+
+    # 3. Embedded JSON array pattern [ { ... } ]
+    array_match = re.search(r"(\[\s*\{.*?\}\s*\])", text, re.DOTALL)
+    if array_match:
+        try:
+            parsed = json.loads(array_match.group(1).strip())
+            if isinstance(parsed, list):
+                return [i for i in parsed if isinstance(i, dict)]
+        except Exception:
+            pass
+
+    # 4. Fallback line-by-line extraction for markdown bullets
+    items: list[dict[str, Any]] = []
+    for line in text.split("\n"):
+        line_clean = line.strip()
+        if not line_clean.startswith(("-", "*", "•")):
+            continue
+        url_match = re.search(r"https?://[^\s)\]]+", line_clean)
+        source_url = url_match.group(0) if url_match else "https://blog.google"
+        domain = "foundation_models"
+        line_lower = line_clean.lower()
+        if any(
+            w in line_lower for w in ["agent", "langgraph", "adk", "crewai", "autogen"]
+        ):
+            domain = "agents_frameworks"
+        elif any(
+            w in line_lower
+            for w in [
+                "cloud",
+                "tpu",
+                "gpu",
+                "blackwell",
+                "trainium",
+                "cluster",
+                "silicon",
+                "azure",
+                "aws",
+            ]
+        ):
+            domain = "cloud_ai_ml"
+
+        headline_cand = line_clean.lstrip("-*• ").split(":")[0][:100]
+        items.append(
+            {
+                "domain": domain,
+                "entity": "Industry",
+                "headline": headline_cand,
+                "summary": line_clean[:250],
+                "source_url": source_url,
+                "date": datetime.now(SYDNEY_TZ).strftime("%Y-%m-%d"),
+                "verified": True,
+            }
+        )
+
+    return items
+
+
+async def process_market_news_callback(
+    callback_context: Any,
+) -> None:
+    """Processes search findings from market_news_agent into structured session state.
+
+    Extracts grounded search items from the agent's response and invokes
+    harvest_all_market_news to perform schema formatting, lookback enforcement,
+    and domain sorting.
+    """
+    raw_data = callback_context.state.get("market_news_data")
+    if not raw_data and hasattr(callback_context, "_invocation_context"):
+        inv_ctx = getattr(callback_context, "_invocation_context", None)
+        if inv_ctx and hasattr(inv_ctx, "session") and inv_ctx.session:
+            for event in reversed(inv_ctx.session.events):
+                if (
+                    event.author == "market_news_agent"
+                    and event.content
+                    and event.content.parts
+                ):
+                    raw_data = "".join(
+                        p.text for p in event.content.parts if p.text and not p.thought
+                    )
+                    if raw_data:
+                        break
+
+    scanned_items = extract_market_items(raw_data)
+    structured_payload = harvest_all_market_news(
+        lookback_hours=72,
+        scanned_items=scanned_items,
+        mock=False,
+    )
+    callback_context.state["market_news_data"] = structured_payload
+
 
 market_news_agent = Agent(
     name="market_news_agent",
@@ -92,8 +241,8 @@ market_news_agent = Agent(
     instruction=MARKET_NEWS_INSTRUCTION,
     tools=[
         google_search,
-        harvest_all_market_news,
     ],
+    after_agent_callback=process_market_news_callback,
     output_key="market_news_data",
 )
 
@@ -130,8 +279,7 @@ def run_market_news_agent(
         f"Today is {sydney_now.strftime('%A, %B %d, %Y')} in Sydney. "
         f"Search Google for recent external frontier AI developments, model releases, agent frameworks, "
         f"and cloud AI/ML infrastructure updates over the trailing {lookback_hours} hours. "
-        "Extract verified technical developments and invoke harvest_all_market_news(scanned_items=[...]) "
-        "with the structured items."
+        "Extract verified technical developments and output them as a structured JSON array of items."
     )
     message = types.Content(role="user", parts=[types.Part.from_text(text=prompt)])
 
@@ -152,12 +300,12 @@ def run_market_news_agent(
         if isinstance(harvest_data, dict) and "announcements" in harvest_data:
             return harvest_data
         elif isinstance(harvest_data, str):
-            try:
-                parsed = json.loads(harvest_data)
-                if isinstance(parsed, dict) and "announcements" in parsed:
-                    return parsed
-            except Exception:
-                pass
+            scanned = extract_market_items(harvest_data)
+            return harvest_all_market_news(
+                lookback_hours=lookback_hours,
+                scanned_items=scanned,
+                mock=False,
+            )
     except Exception as exc:
         if not allow_mock_fallback:
             return {

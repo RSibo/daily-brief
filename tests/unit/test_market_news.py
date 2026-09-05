@@ -170,10 +170,65 @@ def test_harvest_all_market_news_with_scanned_items():
 
 
 def test_market_news_agent_definition():
-    """Verifies ADK agent configuration for market_news_agent."""
+    """Verifies ADK agent configuration for market_news_agent adhering to Vertex AI single-tool-type invariant."""
     assert market_news_agent.name == "market_news_agent"
     assert market_news_agent.output_key == "market_news_data"
-    assert len(market_news_agent.tools) == 2
+    # Vertex AI requires: Multiple tools are supported only when they are all search tools.
+    # Therefore, google_search must NOT be mixed with function declarations.
+    assert len(market_news_agent.tools) == 1
     tool_names = [getattr(t, "__name__", str(t)) for t in market_news_agent.tools]
-    assert "harvest_all_market_news" in tool_names
     assert any("google_search" in str(t).lower() for t in market_news_agent.tools)
+    assert "harvest_all_market_news" not in tool_names
+    assert market_news_agent.after_agent_callback is not None
+
+
+def test_extract_market_items_and_callback():
+    """Verifies that extract_market_items handles JSON strings, markdown fences, and callbacks correctly."""
+    from app.sub_agents.market_news_agent import (
+        extract_market_items,
+        process_market_news_callback,
+    )
+
+    now = datetime.now(SYDNEY_TZ).strftime("%Y-%m-%d")
+
+    # 1. JSON String inside Markdown Code Block
+    raw_md = f"""
+    Here are the latest developments:
+    ```json
+    [
+      {{
+        "domain": "foundation_models",
+        "entity": "Anthropic",
+        "headline": "Claude 3.7 Sonnet hybrid reasoning architecture released",
+        "summary": "Unified architecture combining fast response and variable thinking tokens.",
+        "source_url": "https://www.anthropic.com/news/claude-3-7-sonnet",
+        "date": "{now}",
+        "verified": true
+      }}
+    ]
+    ```
+    """
+    items = extract_market_items(raw_md)
+    assert len(items) == 1
+    assert items[0]["entity"] == "Anthropic"
+
+    # 2. Direct dict with announcements key
+    raw_dict = {"announcements": items}
+    items_from_dict = extract_market_items(raw_dict)
+    assert len(items_from_dict) == 1
+
+    # 3. Verify process_market_news_callback populates state correctly
+    class MockContext:
+        def __init__(self):
+            self.state = {"market_news_data": raw_md}
+
+    import asyncio
+
+    ctx = MockContext()
+    asyncio.run(process_market_news_callback(ctx))
+
+    assert "market_news_data" in ctx.state
+    payload = ctx.state["market_news_data"]
+    assert isinstance(payload, dict)
+    assert len(payload["announcements"]) == 1
+    assert payload["announcements"][0]["entity"] == "Anthropic"

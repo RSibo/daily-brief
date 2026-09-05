@@ -85,6 +85,10 @@ class DailyBriefOrchestrator(SequentialAgent):
                     _gather(sa)
 
         _gather(self)
+        from app.tools.market_news_tools import harvest_all_market_news
+
+        if harvest_all_market_news not in collected:
+            collected.append(harvest_all_market_news)
         return collected
 
 
