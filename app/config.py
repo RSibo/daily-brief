@@ -15,7 +15,7 @@
 """Centralized Application Configuration & Strategic Model Routing.
 
 Implements Rubric Item 3.2 (Strategic Model Routing):
-- ANALYTICAL_MODEL ('gemini-pro-latest'): Deep reasoning for cross-channel signal correlation,
+- ANALYTICAL_MODEL ('gemini-flash-latest'): Fast reasoning for cross-channel signal correlation,
   Chief of Staff executive synthesis, and strict editorial review gate auditing.
 - THROUGHPUT_MODEL ('gemini-flash-latest'): High-speed throughput for Gmail/Chat harvesting,
   live web search extraction, and delivery formatting.
@@ -26,7 +26,7 @@ Implements Rubric Item 3.2 (Strategic Model Routing):
 import os
 
 # Strategic Model Routing Aliases (Unversioned)
-ANALYTICAL_MODEL: str = os.getenv("ANALYTICAL_MODEL", "gemini-pro-latest")
+ANALYTICAL_MODEL: str = os.getenv("ANALYTICAL_MODEL", "gemini-flash-latest")
 THROUGHPUT_MODEL: str = os.getenv("THROUGHPUT_MODEL", "gemini-flash-latest")
 SPEECH_TTS_MODEL: str = os.getenv("SPEECH_TTS_MODEL", "gemini-3.1-flash-tts-preview")
 

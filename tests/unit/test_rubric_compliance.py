@@ -215,9 +215,9 @@ def test_rubric_3_2_strategic_model_routing():
     from app.sub_agents.podcast_creator_agent import podcast_creator_agent
     from app.sub_agents.podcast_script_agent import podcast_script_agent
 
-    # Tier 1: Analytical Reasoning Tier (gemini-pro-latest)
-    assert briefing_writer_agent.model.model == "gemini-pro-latest"
-    assert editor_reviewer_agent.model.model == "gemini-pro-latest"
+    # Tier 1: Analytical Reasoning Tier (gemini-flash-latest)
+    assert briefing_writer_agent.model.model == "gemini-flash-latest"
+    assert editor_reviewer_agent.model.model == "gemini-flash-latest"
 
     # Tier 2: High-Throughput Execution Tier (gemini-flash-latest)
     assert internal_comms_agent.model.model == "gemini-flash-latest"

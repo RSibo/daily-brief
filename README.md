@@ -99,7 +99,7 @@ Generates a structured, email-ready HTML briefing formatted into distinct sectio
 
 ### 6. Strategic Model Routing
 Configured in `app/config.py` to optimize cost, latency, and reasoning depth:
-- **`ANALYTICAL_MODEL` (`gemini-pro-latest`)**: Deep cross-channel correlation, briefing drafting, and strict editorial review auditing.
+- **`ANALYTICAL_MODEL` (`gemini-flash-latest`)**: Deep cross-channel correlation, briefing drafting, and strict editorial review auditing.
 - **`THROUGHPUT_MODEL` (`gemini-flash-latest`)**: High-speed harvesting, noise classification, live search extraction, and delivery formatting.
 - **`SPEECH_TTS_MODEL` (`gemini-3.1-flash-tts-preview`)**: Specialized multimodal audio model for expressive speech synthesis and tone inflection.
 
