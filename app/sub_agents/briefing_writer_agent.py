@@ -23,8 +23,10 @@ Outputs structured DraftBriefingPayload to session state key 'draft_briefing'.
 
 from google.adk.agents import Agent
 from google.adk.models import Gemini
+from google.adk.tools import load_memory, preload_memory
 from google.genai import types
 
+from app.config import ANALYTICAL_MODEL
 from app.prompts.constitution import CHIEF_OF_STAFF_CONSTITUTION
 from app.tools.synthesis_tools import (
     assemble_draft_briefing,
@@ -68,7 +70,7 @@ Calendar data is gathered during harvesting for situational awareness, but do NO
 briefing_writer_agent = Agent(
     name="briefing_writer_agent",
     model=Gemini(
-        model="gemini-flash-latest",
+        model=ANALYTICAL_MODEL,
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=BRIEFING_WRITER_INSTRUCTION,
@@ -78,6 +80,8 @@ briefing_writer_agent = Agent(
         format_hot_list_updates,
         format_market_updates,
         assemble_draft_briefing,
+        preload_memory,
+        load_memory,
     ],
     output_key="draft_briefing",
 )

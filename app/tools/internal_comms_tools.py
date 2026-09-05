@@ -27,6 +27,7 @@ import os
 import re
 import subprocess
 from datetime import UTC, datetime
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
@@ -113,6 +114,49 @@ def _execute_cli_command(cmd: list[str], timeout_seconds: int = 45) -> Any:
         }
 
 
+def compact_content_budget(
+    text: str | None,
+    max_chars: int = 400,
+    preserve_sentences: bool = True,
+) -> str:
+    """Intelligently compacts text to stay strictly within LLM context token budgets.
+
+    Strips redundant whitespace, collapses formatting artifacts, and cleanly bounds
+    the text length while preserving sentence integrity to prevent context bloat.
+
+    Args:
+        text: Raw source text snippet or body string.
+        max_chars: Upper character budget limit.
+        preserve_sentences: Whether to attempt breaking at sentence boundaries.
+
+    Returns:
+        Compacted text string within budget.
+    """
+    if not text:
+        return ""
+    # 1. Normalize and collapse repetitive whitespace and line breaks
+    cleaned = re.sub(r"\s+", " ", text).strip()
+    if len(cleaned) <= max_chars:
+        return cleaned
+
+    # 2. Token-conscious boundary truncation
+    cutoff = max_chars - 16  # Reserve budget for compaction marker
+    sliced = cleaned[:cutoff]
+    if preserve_sentences and any(p in sliced for p in [". ", "? ", "! "]):
+        last_punct = max(
+            sliced.rfind(". "),
+            sliced.rfind("? "),
+            sliced.rfind("! "),
+        )
+        if last_punct > cutoff // 2:
+            return f"{sliced[: last_punct + 1]} [compacted]"
+
+    if " " in sliced:
+        sliced = sliced.rsplit(" ", 1)[0]
+    return f"{sliced}... [compacted]"
+
+
+@lru_cache(maxsize=32)
 def load_target_chat_spaces(
     config_path: str = "config/chat_spaces.md",
 ) -> list[dict[str, str]]:
@@ -132,6 +176,7 @@ def load_target_chat_spaces(
     ]
 
 
+@lru_cache(maxsize=32)
 def load_active_hot_list_themes(
     config_path: str = "config/hot_list.md",
 ) -> list[dict[str, str]]:
@@ -233,8 +278,11 @@ def fetch_unread_leadership_threads(
     for t in raw_threads:
         subject = t.get("subject", "No Subject")
         sender = t.get("from", t.get("sender", ""))
-        snippet = t.get("snippet", "")
-        if is_suppressed_noise(subject, sender, snippet):
+        raw_snippet = t.get("snippet", "")
+        snippet = compact_content_budget(raw_snippet, max_chars=400)
+        raw_body = t.get("body")
+        body = compact_content_budget(raw_body, max_chars=1200) if raw_body else None
+        if is_suppressed_noise(subject, sender, raw_snippet):
             continue
 
         thread_id = t.get("id", t.get("threadId", "unknown"))
@@ -258,6 +306,7 @@ def fetch_unread_leadership_threads(
             timestamp=t.get("date", datetime.now(UTC).isoformat()),
             subject=subject,
             snippet=snippet,
+            body=body,
             deep_link=f"https://mail.google.com/mail/u/0/#inbox/{thread_id}",
             is_vip=True,
             vip_category=vip_cat,
@@ -350,7 +399,7 @@ def scan_target_chat_spaces(
                 else sender,
                 timestamp=dm.get("createTime", datetime.now(UTC).isoformat()),
                 subject=f"1:1 DM from {sender}",
-                snippet=text[:160],
+                snippet=compact_content_budget(text, max_chars=240),
                 deep_link=f"https://chat.google.com/room/{thread_id}"
                 if thread_id.startswith("spaces/")
                 else "https://chat.google.com",
@@ -380,7 +429,7 @@ def scan_target_chat_spaces(
                 else sender,
                 timestamp=m.get("createTime", datetime.now(UTC).isoformat()),
                 subject=f"@rsibo Mention in {space_id}",
-                snippet=text[:160],
+                snippet=compact_content_budget(text, max_chars=240),
                 deep_link=f"https://chat.google.com/room/{space_id}",
                 is_vip=False,
                 requires_action=True,

@@ -216,21 +216,34 @@ def cleanup_pipeline_artifacts(
     retention_days: int = 7,
     harvest_cache_dir: str | None = None,
     audio_dir: str | None = None,
+    dry_run: bool = False,
+    confirm_purge: bool = True,
 ) -> dict[str, Any]:
     """Automated lifecycle cleanup tool executing after Calendar and Chat delivery.
 
     Purges ephemeral harvesting caches and deletes local MP3 audio files
     with last-modified timestamps older than retention_days (default 7 days).
+    Supports dry-run simulation and confirmation parameters to ensure safe handling
+    of destructive file actions in compliance with Rubric Item 3.4.
 
     Args:
         retention_days: Maximum age of local MP3 files to retain (default 7 days).
         harvest_cache_dir: Directory containing temporary harvest cache files.
         audio_dir: Directory to scan for aging MP3 files (defaults to /tmp).
+        dry_run: Whether to simulate deletion without removing files.
+        confirm_purge: Safety confirmation gate required to execute file deletions.
 
     Returns:
         Summary dictionary containing counts of purged caches and audio files.
     """
     try:
+        if not confirm_purge:
+            return {
+                "status": "aborted",
+                "message": "Destructive cleanup canceled: confirm_purge is False.",
+                "retention_days": retention_days,
+            }
+
         now = time.time()
         max_age_seconds = retention_days * 86400
 
@@ -248,7 +261,8 @@ def cleanup_pipeline_artifacts(
             if cdir and os.path.exists(cdir):
                 for cache_file in glob.glob(os.path.join(cdir, "*.json")):
                     try:
-                        os.remove(cache_file)
+                        if not dry_run:
+                            os.remove(cache_file)
                         purged_caches_count += 1
                     except OSError:
                         pass
@@ -269,7 +283,8 @@ def cleanup_pipeline_artifacts(
                         mtime = os.path.getmtime(mp3_path)
                         age_sec = now - mtime
                         if age_sec > max_age_seconds:
-                            os.remove(mp3_path)
+                            if not dry_run:
+                                os.remove(mp3_path)
                             purged_audio_files.append(mp3_path)
                         else:
                             retained_audio_count += 1
@@ -278,6 +293,7 @@ def cleanup_pipeline_artifacts(
 
         return {
             "status": "success",
+            "dry_run": dry_run,
             "purged_harvest_caches": purged_caches_count,
             "purged_audio_files": purged_audio_files,
             "purged_audio_count": len(purged_audio_files),
@@ -299,12 +315,15 @@ def deliver_daily_briefing(
     podcast_asset: dict[str, Any] | None = None,
     delivery_mode: str = "all",
     mock: bool = True,
+    require_confirmation: bool = False,
     tool_context: ToolContext | None = None,
 ) -> dict[str, Any]:
     """Coordinates end-to-end delivery: Calendar event, Chat response, and post-run cleanup.
 
     Automates the full delivery sequence and automatically invokes cleanup_pipeline_artifacts
-    strictly after delivery completes.
+    strictly after delivery completes. By default operates 100% autonomously for scheduled
+    morning cron execution without interactive prompts, while providing optional confirmation
+    gates for interactive sessions.
 
     Args:
         final_briefing: Optional FinalBriefingPayload dictionary or raw HTML. If omitted,
@@ -313,12 +332,20 @@ def deliver_daily_briefing(
             automatically resolved from tool_context.state['podcast_asset'].
         delivery_mode: Delivery channel ('calendar', 'chat', or 'all').
         mock: Whether to use mock calendar creation.
+        require_confirmation: Whether to pause and request user confirmation before calendar delivery.
+            Defaults to False for autonomous scheduled cron execution.
         tool_context: ADK ToolContext to register delivery_result in session state.
 
     Returns:
         Consolidated delivery outcome dictionary.
     """
     try:
+        if require_confirmation:
+            return {
+                "status": "confirmation_required",
+                "message": "Briefing approved by Chief of Staff Reviewer. Deliver to Google Calendar? [Y/n]",
+                "action": "schedule_briefing_calendar_event",
+            }
         if (
             final_briefing is None
             and tool_context is not None

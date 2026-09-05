@@ -29,6 +29,7 @@ from google.adk.models import Gemini
 from google.adk.tools import exit_loop
 from google.genai import types
 
+from app.config import ANALYTICAL_MODEL
 from app.prompts.constitution import CHIEF_OF_STAFF_CONSTITUTION
 from app.tools.editor_tools import (
     evaluate_briefing_draft,
@@ -74,7 +75,7 @@ and structural integrity before any briefing is finalized for delivery.
 editor_reviewer_agent = Agent(
     name="editor_reviewer_agent",
     model=Gemini(
-        model="gemini-flash-latest",
+        model=ANALYTICAL_MODEL,
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=EDITOR_REVIEWER_INSTRUCTION,

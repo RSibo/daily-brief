@@ -29,6 +29,7 @@ from google.adk.agents import Agent
 from google.adk.models import Gemini
 from google.genai import types
 
+from app.config import THROUGHPUT_MODEL
 from app.prompts.constitution import CHIEF_OF_STAFF_CONSTITUTION
 from app.tools.podcast_tools import convert_html_to_spoken_script
 
@@ -76,7 +77,7 @@ strictly for listening during a morning commute.
 podcast_script_agent = Agent(
     name="podcast_script_agent",
     model=Gemini(
-        model="gemini-flash-latest",
+        model=THROUGHPUT_MODEL,
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=PODCAST_SCRIPT_INSTRUCTION,

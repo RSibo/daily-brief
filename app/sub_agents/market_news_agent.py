@@ -25,6 +25,7 @@ from google.adk.models import Gemini
 from google.adk.tools import google_search
 from google.genai import types
 
+from app.config import THROUGHPUT_MODEL
 from app.prompts.constitution import CHIEF_OF_STAFF_CONSTITUTION
 from app.tools.market_news_tools import (
     harvest_all_market_news,
@@ -72,7 +73,7 @@ rather than minor library version bumps or marketing announcements.
 market_news_agent = Agent(
     name="market_news_agent",
     model=Gemini(
-        model="gemini-flash-latest",
+        model=THROUGHPUT_MODEL,
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=MARKET_NEWS_INSTRUCTION,

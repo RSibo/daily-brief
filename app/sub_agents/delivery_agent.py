@@ -28,6 +28,7 @@ from google.adk.agents import Agent
 from google.adk.models import Gemini
 from google.genai import types
 
+from app.config import THROUGHPUT_MODEL
 from app.prompts.constitution import CHIEF_OF_STAFF_CONSTITUTION
 from app.tools.delivery_tools import (
     cleanup_pipeline_artifacts,
@@ -64,7 +65,7 @@ and perform post-run workspace housekeeping.
 delivery_agent = Agent(
     name="delivery_agent",
     model=Gemini(
-        model="gemini-flash-latest",
+        model=THROUGHPUT_MODEL,
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=DELIVERY_AGENT_INSTRUCTION,

@@ -26,6 +26,7 @@ from google.adk.agents import Agent
 from google.adk.models import Gemini
 from google.genai import types
 
+from app.config import SPEECH_TTS_MODEL
 from app.prompts.constitution import CHIEF_OF_STAFF_CONSTITUTION
 from app.tools.podcast_tools import (
     generate_podcast_pipeline,
@@ -60,7 +61,7 @@ You are the `podcast_creator_agent`. Your job is to transform the synthesized sp
 podcast_creator_agent = Agent(
     name="podcast_creator_agent",
     model=Gemini(
-        model="gemini-flash-latest",
+        model=SPEECH_TTS_MODEL,
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=PODCAST_CREATOR_INSTRUCTION,

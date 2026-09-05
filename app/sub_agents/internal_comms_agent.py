@@ -23,6 +23,7 @@ from google.adk.agents import Agent
 from google.adk.models import Gemini
 from google.genai import types
 
+from app.config import THROUGHPUT_MODEL
 from app.prompts.constitution import CHIEF_OF_STAFF_CONSTITUTION
 from app.tools.internal_comms_tools import (
     fetch_unread_leadership_threads,
@@ -49,7 +50,7 @@ all internal communications received over the last 24 hours from run time in Syd
 internal_comms_agent = Agent(
     name="internal_comms_agent",
     model=Gemini(
-        model="gemini-flash-latest",
+        model=THROUGHPUT_MODEL,
         retry_options=types.HttpRetryOptions(attempts=3),
     ),
     instruction=INTERNAL_COMMS_INSTRUCTION,

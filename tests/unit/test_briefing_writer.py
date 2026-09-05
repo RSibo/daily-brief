@@ -252,13 +252,18 @@ def test_briefing_writer_agent_definition():
     """Verifies ADK agent configuration for briefing_writer_agent."""
     assert briefing_writer_agent.name == "briefing_writer_agent"
     assert briefing_writer_agent.output_key == "draft_briefing"
-    assert len(briefing_writer_agent.tools) == 5
-    tool_names = [getattr(t, "__name__", str(t)) for t in briefing_writer_agent.tools]
+    assert len(briefing_writer_agent.tools) >= 5
+    tool_names = [
+        getattr(t, "name", getattr(t, "__name__", str(t)))
+        for t in briefing_writer_agent.tools
+    ]
     assert "assemble_draft_briefing" in tool_names
     assert "synthesize_overnight_summary" in tool_names
     assert "format_core_updates" in tool_names
     assert "format_hot_list_updates" in tool_names
     assert "format_market_updates" in tool_names
+    assert "load_memory" in tool_names
+    assert "preload_memory" in tool_names
 
 
 def test_assemble_draft_briefing_with_string_inputs():

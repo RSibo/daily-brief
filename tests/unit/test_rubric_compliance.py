@@ -125,26 +125,37 @@ def test_rubric_2_1_robust_system_instructions():
 
 
 def test_rubric_2_2_history_compaction():
-    """Rubric 2.2: Large text payloads are compacted/bounded to maintain context budgets (5 pts)."""
-    item = CommunicationItem(
-        source="gmail",
-        thread_id="msg_long_001",
-        sender_name="Lead Engineer",
-        sender_email="engineer@google.com",
-        timestamp="2026-09-04T10:00:00Z",
-        subject="[Architecture Update] High volume details",
-        snippet="A" * 500,
-        body="B" * 5000,
-        deep_link="https://mail.google.com/mail/u/0/#inbox/msg_long_001",
-    )
-    # Ensure serializing to session state respects fields
-    item_dict = item.model_dump()
-    assert len(item_dict["snippet"]) <= 500
-    assert item_dict["source"] == "gmail"
+    """Rubric 2.2: Large text payloads are compacted/bounded and memory tools equipped (5 pts)."""
+    from app.sub_agents.briefing_writer_agent import briefing_writer_agent
+    from app.tools.internal_comms_tools import compact_content_budget
+
+    # 1. Verify semantic thread compactor bounds text and collapses whitespace
+    bloated_text = "   Critical architecture decision.   " + "Word " * 300
+    compacted = compact_content_budget(bloated_text, max_chars=200)
+    assert len(compacted) <= 200
+    assert "[compacted]" in compacted
+    assert "   " not in compacted
+
+    # 2. Verify ADK native memory tools are equipped on briefing_writer_agent
+    tool_names = [
+        getattr(t, "name", getattr(t, "__name__", str(t)))
+        for t in briefing_writer_agent.tools
+    ]
+    assert "load_memory" in tool_names
+    assert "preload_memory" in tool_names
 
 
 def test_rubric_2_3_persistent_session_state():
-    """Rubric 2.3: Session state models cleanly serialize and deserialize for SessionService (5 pts)."""
+    """Rubric 2.3: Session state connects to persistent database and serializes cleanly (5 pts)."""
+    import app.fast_api_app as fast_api_module
+
+    # 1. Verify persistent database connection in FastAPI app (Embedded SQLite / zero external infra)
+    assert fast_api_module.session_service_uri is not None
+    assert fast_api_module.session_service_uri.startswith(
+        ("sqlite:///", "postgresql://")
+    )
+
+    # 2. Verify session state payload serialization/deserialization
     draft = DraftBriefingPayload(
         raw_html="<b>OVERNIGHT SUMMARY</b><br>Brief text.<br><br>",
         executive_orientation="Brief text.",
@@ -161,12 +172,15 @@ def test_rubric_2_3_persistent_session_state():
 
 
 def test_rubric_2_4_async_memory_operations():
-    """Rubric 2.4: Long-term memory consolidation functions exist with non-blocking design (5 pts)."""
-    from app.agent import root_agent
+    """Rubric 2.4: Non-blocking async endpoints and background task workers exist (5 pts)."""
+    import app.fast_api_app as fast_api_module
 
-    # Orchestrator defines lifecycle and state integration
-    assert hasattr(root_agent, "name")
-    assert root_agent.name == "daily_brief_orchestrator"
+    # 1. Verify async endpoint exists on FastAPI app
+    route_paths = [route.path for route in fast_api_module.app.routes]
+    assert "/run_briefing_async" in route_paths
+
+    # 2. Verify background execution worker is defined
+    assert hasattr(fast_api_module, "_run_background_delivery")
 
 
 # =============================================================================
@@ -192,12 +206,38 @@ def test_rubric_3_1_multi_agent_patterns():
 
 
 def test_rubric_3_2_strategic_model_routing():
-    """Rubric 3.2: Strategic model routing configured per sub-agent (5 pts)."""
+    """Rubric 3.2: Strategic model routing configured across tiers using unversioned aliases (5 pts)."""
+    from app.sub_agents.briefing_writer_agent import briefing_writer_agent
     from app.sub_agents.delivery_agent import delivery_agent
+    from app.sub_agents.editor_reviewer_agent import editor_reviewer_agent
+    from app.sub_agents.internal_comms_agent import internal_comms_agent
     from app.sub_agents.market_news_agent import market_news_agent
+    from app.sub_agents.podcast_creator_agent import podcast_creator_agent
+    from app.sub_agents.podcast_script_agent import podcast_script_agent
 
-    assert market_news_agent.model is not None
-    assert delivery_agent.model is not None
+    # Tier 1: Analytical Reasoning Tier (gemini-pro-latest)
+    assert briefing_writer_agent.model.model == "gemini-pro-latest"
+    assert editor_reviewer_agent.model.model == "gemini-pro-latest"
+
+    # Tier 2: High-Throughput Execution Tier (gemini-flash-latest)
+    assert internal_comms_agent.model.model == "gemini-flash-latest"
+    assert market_news_agent.model.model == "gemini-flash-latest"
+    assert podcast_script_agent.model.model == "gemini-flash-latest"
+    assert delivery_agent.model.model == "gemini-flash-latest"
+
+    # Tier 3: Specialized Speech & Voice Cues (gemini-3.1-flash-tts-preview)
+    assert podcast_creator_agent.model.model == "gemini-3.1-flash-tts-preview"
+
+    # Ensure no hardcoded version variants (like 2.5) are used
+    for agent in [
+        briefing_writer_agent,
+        editor_reviewer_agent,
+        internal_comms_agent,
+        market_news_agent,
+        podcast_script_agent,
+        delivery_agent,
+    ]:
+        assert "2.5" not in agent.model.model
 
 
 def test_rubric_3_3_guardrails_and_policy_plugins():
@@ -209,9 +249,38 @@ def test_rubric_3_3_guardrails_and_policy_plugins():
 
 
 def test_rubric_3_4_human_in_the_loop_hooks():
-    """Rubric 3.4: Review loop implements explicit escalation/approval gate (5 pts)."""
+    """Rubric 3.4: Autonomous morning cron, interactive review gate, and destructive safety (5 pts)."""
+    from app.tools.delivery_tools import (
+        cleanup_pipeline_artifacts,
+        deliver_daily_briefing,
+    )
     from app.tools.editor_tools import finalize_approved_briefing
 
+    # 1. Autonomous cron execution: Calendar delivery proceeds unattended by default
+    cron_result = deliver_daily_briefing(
+        final_briefing="<b>OVERNIGHT SUMMARY</b><br>Content.<br><br>",
+        mock=True,
+        require_confirmation=False,
+    )
+    assert cron_result["status"] == "delivered"
+    assert cron_result["calendar_event_id"] is not None
+
+    # 2. Interactive review gate: Optional confirmation check for chat UI mode
+    interactive_result = deliver_daily_briefing(
+        final_briefing="<b>OVERNIGHT SUMMARY</b><br>Content.<br><br>",
+        mock=True,
+        require_confirmation=True,
+    )
+    assert interactive_result["status"] == "confirmation_required"
+
+    # 3. Destructive action safety stop in cleanup_pipeline_artifacts
+    abort_res = cleanup_pipeline_artifacts(confirm_purge=False)
+    assert abort_res["status"] == "aborted"
+    dry_res = cleanup_pipeline_artifacts(dry_run=True, confirm_purge=True)
+    assert dry_res["status"] == "success"
+    assert dry_res["dry_run"] is True
+
+    # 4. Editorial Review Loop as Chief of Staff quality gate
     class MockContext:
         def __init__(self) -> None:
             class Actions:
