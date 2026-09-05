@@ -157,11 +157,20 @@ def schedule_briefing_calendar_event(
                 ]
             )
         proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
-        event_match = re.search(r"event[s]?/([a-zA-Z0-9_-]+)", proc.stdout)
+        event_match = (
+            re.search(r"\(ID:\s*([a-zA-Z0-9_-]+)\)", proc.stdout)
+            or re.search(r"ID:\s*([a-zA-Z0-9_-]+)", proc.stdout)
+            or re.search(r"event[s]?/([a-zA-Z0-9_-]+)", proc.stdout)
+        )
         event_id = (
             event_match.group(1) if event_match else f"cal-brief-{uuid.uuid4().hex[:8]}"
         )
-        html_link = f"https://calendar.google.com/calendar/event?eid={event_id}"
+        link_match = re.search(r"Link:\s*(https://[^\s]+)", proc.stdout)
+        html_link = (
+            link_match.group(1)
+            if link_match
+            else f"https://calendar.google.com/calendar/event?eid={event_id}"
+        )
 
         # Ensure attachment is present via update if needed
         if drive_url and "attachment" not in proc.stdout.lower():
