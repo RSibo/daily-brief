@@ -293,7 +293,7 @@ def synthesize_podcast_audio(
         now_str = datetime.now(SYDNEY_TZ).strftime("%y%m%d")
         if output_path is None:
             temp_dir = tempfile.gettempdir()
-            output_path = os.path.join(temp_dir, f"[{now_str}]-Daily-Brief.mp3")
+            output_path = os.path.join(temp_dir, f"[{now_str}]-Daily Brief.mp3")
 
         if not mock:
             # Attempt live synthesis via edge-tts if available

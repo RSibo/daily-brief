@@ -147,6 +147,15 @@ def schedule_briefing_calendar_event(
             "--description",
             final_html,
         ]
+        if drive_url:
+            cmd.extend(
+                [
+                    "--attachment-url",
+                    drive_url,
+                    "--attachment-title",
+                    f"[{now_sydney.strftime('%y%m%d')}]-Daily Brief.mp3",
+                ]
+            )
         proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
         event_match = re.search(r"event[s]?/([a-zA-Z0-9_-]+)", proc.stdout)
         event_id = (
@@ -154,8 +163,8 @@ def schedule_briefing_calendar_event(
         )
         html_link = f"https://calendar.google.com/calendar/event?eid={event_id}"
 
-        # If podcast audio is attached, call mutate update with attachment
-        if drive_url:
+        # Ensure attachment is present via update if needed
+        if drive_url and "attachment" not in proc.stdout.lower():
             att_cmd = [
                 "/google/bin/releases/gemini-agents-gcalendar/gcalendar",
                 "mutate",
@@ -164,7 +173,7 @@ def schedule_briefing_calendar_event(
                 "--attachment-url",
                 drive_url,
                 "--attachment-title",
-                f"[{now_sydney.strftime('%y%m%d')}]-Daily-Brief.mp3",
+                f"[{now_sydney.strftime('%y%m%d')}]-Daily Brief.mp3",
             ]
             subprocess.run(att_cmd, capture_output=True, text=True, check=False)
 
