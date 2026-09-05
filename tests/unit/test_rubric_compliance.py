@@ -225,8 +225,13 @@ def test_rubric_3_2_strategic_model_routing():
     assert podcast_script_agent.model.model == "gemini-flash-latest"
     assert delivery_agent.model.model == "gemini-flash-latest"
 
-    # Tier 3: Specialized Speech & Voice Cues (gemini-3.1-flash-tts-preview)
-    assert podcast_creator_agent.model.model == "gemini-3.1-flash-tts-preview"
+    # Tier 2 (cont): Execution Tier with tool calling support (gemini-flash-latest)
+    assert podcast_creator_agent.model.model == "gemini-flash-latest"
+
+    # Tier 3: Specialized Speech & Voice Cues Alias (gemini-3.1-flash-tts-preview)
+    from app.config import SPEECH_TTS_MODEL
+
+    assert SPEECH_TTS_MODEL == "gemini-3.1-flash-tts-preview"
 
     # Ensure no hardcoded version variants (like 2.5) are used
     for agent in [
