@@ -39,7 +39,6 @@ from google.adk.tools import ToolContext
 from app.app_utils.telemetry import trace_tool
 from app.app_utils.typing import (
     PodcastReviewCritiquePayload,
-    PodcastScriptDraftPayload,
     PodcastScriptPayload,
     StructuredToolError,
 )
@@ -260,7 +259,7 @@ def lint_podcast_spoken_script(
 
     if total_opportunities >= 3 and contraction_density < 0.60:
         issues.append(
-            f"Contraction density is low ({int(contraction_density*100)}%). Spoken scripts must use natural contractions (e.g., 'we've', 'there's', 'it's')."
+            f"Contraction density is low ({int(contraction_density * 100)}%). Spoken scripts must use natural contractions (e.g., 'we've', 'there's', 'it's')."
         )
         checks["contraction_density_valid"] = False
     else:

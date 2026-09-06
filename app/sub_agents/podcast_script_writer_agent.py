@@ -80,7 +80,7 @@ If revising, address the specific acoustic critique provided in `{{podcast_scrip
 
 7. **Target Runtime & Word Depth (6 to 15 Minutes)**:
    - The podcast duration must be 6 to 15 minutes, depending on content volume and impact.
-   - At 130–150 words per minute (at 1.05x speed), this corresponds to approximately 800 to 2,400 words.
+   - At 130-150 words per minute (at 1.05x speed), this corresponds to approximately 800 to 2,400 words.
    - If content is impactful with extensive leadership, customer, and frontier AI updates, expand with rich operational context, strategic significance, and next steps to sustain up to 15 minutes (~2,200 to 2,400 words).
    - If updates are light, provide complete background context to reach at least 6 minutes (~800 words).
 

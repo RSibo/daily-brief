@@ -164,13 +164,9 @@ def test_podcast_editorial_loop_configuration() -> None:
     assert podcast_editorial_loop.name == "podcast_editorial_loop"
     assert podcast_editorial_loop.max_iterations == 5
     assert len(podcast_editorial_loop.sub_agents) == 2
+    assert podcast_editorial_loop.sub_agents[0].name == podcast_script_writer_agent.name
     assert (
-        podcast_editorial_loop.sub_agents[0].name
-        == podcast_script_writer_agent.name
-    )
-    assert (
-        podcast_editorial_loop.sub_agents[1].name
-        == podcast_editor_reviewer_agent.name
+        podcast_editorial_loop.sub_agents[1].name == podcast_editor_reviewer_agent.name
     )
     assert podcast_script_writer_agent.output_key == "podcast_script_draft"
     assert podcast_editor_reviewer_agent.output_key == "podcast_script_critique"

@@ -130,19 +130,24 @@ flowchart LR
 ```python
 class PodcastScriptDraftPayload(BaseModel):
     """Working draft produced by podcast_script_writer_agent."""
+
     spoken_script_draft: str = Field(..., description="Draft spoken script")
     iteration: int = Field(default=1, description="Loop iteration counter")
     generated_at: str = Field(..., description="ISO 8601 timestamp")
 
+
 class PodcastReviewCritiquePayload(BaseModel):
     """Critique produced by podcast_editor_reviewer_agent."""
+
     verdict: Literal["approve", "revise"] = Field(...)
     critique: str = Field(..., description="Actionable critique for revisions")
     issues: list[str] = Field(default_factory=list)
     passed: bool = Field(...)
 
+
 class PodcastScriptPayload(BaseModel):
     """Finalized and approved spoken script passed to podcast_creator_agent."""
+
     spoken_script: str = Field(..., description="Approved spoken script")
     word_count: int = Field(...)
     estimated_duration_seconds: int = Field(...)

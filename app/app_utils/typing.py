@@ -256,4 +256,3 @@ class PodcastAssetPayload(BaseModel):
     )
     duration_seconds: int = Field(..., description="Actual audio duration in seconds")
     created_at: str = Field(..., description="Upload timestamp")
-

@@ -42,7 +42,6 @@ from app.sub_agents.internal_comms_agent import internal_comms_agent
 from app.sub_agents.market_news_agent import market_news_agent
 from app.sub_agents.podcast_creator_agent import podcast_creator_agent
 from app.sub_agents.podcast_editorial_loop import podcast_editorial_loop
-from app.sub_agents.podcast_script_agent import podcast_script_agent
 from app.tools.delivery_tools import (
     cleanup_pipeline_artifacts,
     deliver_daily_briefing,

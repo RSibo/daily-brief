@@ -24,7 +24,7 @@ The system coordinates a hierarchical, multi-stage pipeline combining parallel h
 
 ```mermaid
 flowchart TD
-    subgraph Stage1 ["Stage 1: Multi-Channel Signal Harvesting (ParallelAgent)"]
+    subgraph Stage1 ["Stage 1: Multi-Channel Signal Harvesting (harvesters: ParallelAgent)"]
         GMAIL["Gmail CLI<br/>(VIP Leadership & Direct Reports)"]
         GCHAT["Google Chat CLI<br/>(1:1 DMs, @rsibo, Priority Spaces)"]
         GCAL["Google Calendar CLI<br/>(Today's Agenda & Prep Dossier)"]
@@ -39,25 +39,39 @@ flowchart TD
         MARKET_EXT --> MARKET_AGENT
     end
 
-    subgraph Stage23 ["Stages 2 & 3: Synthesis & Editorial Loop (LoopAgent)"]
+    subgraph Stage23 ["Stages 2 & 3: Synthesis & Editorial Loop (editorial_loop: LoopAgent)"]
         WRITER["briefing_writer_agent<br/>(Executive Drafting & Hot List Tracking)"]
         REVIEWER["editor_reviewer_agent<br/>(Executive Quality Gate & Standards Linter)"]
+        GATE1{"Gate 1: Review Verdict<br/>(verdict == 'approve'?)"}
         
         INTERNAL_AGENT --> WRITER
         MARKET_AGENT --> WRITER
-        WRITER <-->|"Critique & Refine<br/>(Max 4 Iterations)"| REVIEWER
+        WRITER --> REVIEWER
+        REVIEWER --> GATE1
+        GATE1 -->|"verdict == 'revise'<br/>(Max 4 Iterations)"| WRITER
     end
 
-    subgraph Stage4 ["Stage 4: Audio Podcast Pipeline (SequentialAgent)"]
-        SCRIPT_AGENT["podcast_script_agent<br/>(Acoustic Script & Phonetic Expansion)"]
-        AUDIO_AGENT["podcast_creator_agent<br/>(Gemini TTS Preview & Drive Upload)"]
+    subgraph Stage4 ["Stage 4: Executive Audio Podcast Pipeline (podcast_pipeline: SequentialAgent)"]
+        subgraph Stage4a ["Stage 4a: Podcast Spoken Overview Editorial Loop (podcast_editorial_loop: LoopAgent)"]
+            SCRIPT_WRITER["podcast_script_writer_agent<br/>(Narrative Acoustic Rewriter)"]
+            AUDIO_REVIEWER["podcast_editor_reviewer_agent<br/>(Audio QC & Acoustic Standards Linter)"]
+            GATE2{"Gate 2: Audio Verdict<br/>(verdict == 'approve'?)"}
+            
+            SCRIPT_WRITER --> AUDIO_REVIEWER
+            AUDIO_REVIEWER --> GATE2
+            GATE2 -->|"verdict == 'revise'<br/>(Max 5 Iterations)"| SCRIPT_WRITER
+        end
         
-        REVIEWER -->|"Approved Brief"| SCRIPT_AGENT
-        SCRIPT_AGENT --> AUDIO_AGENT
+        subgraph Stage4b ["Stage 4b: Audio Creation & Upload"]
+            AUDIO_AGENT["podcast_creator_agent<br/>(edge-tts AvaNeural 1.05x / Gemini TTS Preview & Drive Upload)"]
+        end
+        
+        GATE1 -->|"Approved Written Brief"| SCRIPT_WRITER
+        GATE2 -->|"Approved Acoustic Script"| AUDIO_AGENT
     end
 
     subgraph Stage5 ["Stage 5: Delivery & Lifecycle (delivery_agent)"]
-        CAL_DELIVERY["Google Calendar Delivery<br/>(Private 06:00 Event + Audio Link)"]
+        CAL_DELIVERY["Google Calendar Delivery<br/>(Private Morning 06:00 / Evening 19:00 Event + MP3 Link)"]
         LIFECYCLE["Artifact Lifecycle Retention<br/>(Automated 7-Day Temp File Purge)"]
         
         AUDIO_AGENT --> CAL_DELIVERY
@@ -70,10 +84,10 @@ flowchart TD
 ## Core Capabilities & Pipeline Stages
 
 ### 1. Multi-Source Signal Harvesting (`harvesters`)
-- **Gmail Ingestion**: Queries unread emails strictly within a 24-hour lookback window from key leadership (Simon Elisha, Mitesh Agarwal, Vamsi Ramakrishnan, etc.) and 15 direct reports.
+- **Gmail Ingestion**: Queries unread emails strictly within a 24-hour lookback window (or 12-hour for afternoon) from key leadership (Simon Elisha, Mitesh Agarwal, Vamsi Ramakrishnan, etc.) and 15 direct reports.
 - **Google Chat Ingestion**: Scans 1:1 unread direct messages, direct `@rsibo` mentions, and designated team spaces (configured dynamically in `config/chat_spaces.md`).
 - **Calendar Dossier**: Extracts today's meetings in `Australia/Sydney` timezone, attendee lists, objectives, and prep links.
-- **AI Market Movements**: Gathers foundation model updates, enterprise agent architectures, and hyperscaler announcements (GCP, AWS, Azure) with verified source citations.
+- **AI Market Movements**: Gathers foundation model updates, enterprise agent architectures, and hyperscaler announcements (GCP, AWS, Azure) via Google Search grounding with verified source citations.
 
 ### 2. Upstream Noise Suppression & Content Budgeting
 - **Zero-Fluff Heuristics**: Automatically drops kudos (`noreply+gthanks@google.com`), calendar accept/decline notifications, Buganizer automated CCs, and mass newsletters before any LLM processing.
@@ -81,7 +95,7 @@ flowchart TD
 
 ### 3. Structured Briefing Synthesis & Active Hot List Tracking
 Generates a structured, email-ready HTML briefing formatted into distinct sections:
-- **Overnight Executive Orientation**: Exactly 6 unbolded plain text sentences in a calm, authoritative Chief of Staff tone summarizing critical developments since 5:00 PM the previous evening.
+- **Executive Orientation**: Exactly 6 unbolded plain text sentences in a calm, authoritative Chief of Staff tone (titled `OVERNIGHT SUMMARY` for morning, `EXECUTIVE SUMMARY` for afternoon).
 - **Core Updates & Leadership Directives**: Clustered by account or strategic topic with hyperlinked headers directly to threads, bolded entities, and recency anchors (e.g., *"Last response from Vamsi was Thursday"*).
 - **Active Hot List Tracking**: Continuous 3-day monitoring of strategic priorities (e.g., *Optus VAIS Blocker*, *Woolworths GE/FLW*, *Google AI DRZ* from `config/hot_list.md`). If a theme has had no traffic, explicitly outputs: `"- On topic [Theme Name] no updates yet."`
 - **Needs You / Action Tracker**: Checklist of unanswered direct questions, pending approvals, and mentions, flagged with aging indicators (`[Day 2 - Unanswered]`).
@@ -93,9 +107,11 @@ Generates a structured, email-ready HTML briefing formatted into distinct sectio
 - Loops up to 4 iterations until explicitly approved.
 
 ### 5. Executive Audio Podcast Pipeline (`podcast_pipeline`)
-- **Acoustic Adaptation**: Converts the written brief into an energetic, natural spoken dialogue script tailored for executive listening during morning commutes.
-- **Phonetic Normalization**: Applies regex-based phonetic replacements (e.g., `VAIS` &rarr; `V-A-I-S`, `DRZ` &rarr; `D-R-Z`, `AuNZ` &rarr; `Australia and New Zealand`, `GE` &rarr; `Gemini Enterprise`) so the speech model pronounces domain terminology accurately.
-- **Gemini Multimodal TTS**: Generates high-fidelity MP3 audio, uploads it to Google Drive in the designated briefing folder, and injects a `Listen to Brief` link at the very top of the calendar invitation.
+- **Stage 4a: Podcast Spoken Overview Editorial Loop (`podcast_editorial_loop`)**:
+  - Autonomous loop (`max_iterations=5`) pairing `podcast_script_writer_agent` (narrative acoustic rewriter) and `podcast_editor_reviewer_agent` (audio QC auditor).
+  - Enforces mandatory `"Let's begin; "` opening hook (zero greeting pleasantries), transforms mechanical bracketed citations into smooth spoken prose, enforces 6–15 min runtime bounds (~800 to 2,400 words), linear sentence brevity (&le; 18 words), high contraction density (&ge; 80%), and eliminates 100% of markdown asterisks, bullet dashes, and visual artifacts via `lint_podcast_spoken_script`.
+- **Stage 4b: Audio Creation & Cloud Delivery (`podcast_creator_agent`)**:
+  - Synthesizes high-fidelity MP3 audio at 1.05x pace via `edge-tts` AvaNeural (or `gemini-3.1-flash-tts-preview`), uploads to Google Drive in folder `/agents/daily-briefing`, and injects a `Listen to Brief` badge link at the top of the calendar invitation.
 
 ### 6. Strategic Model Routing
 Configured in `app/config.py` to optimize cost, latency, and reasoning depth:
