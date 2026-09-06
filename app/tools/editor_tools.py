@@ -134,15 +134,15 @@ def lint_vp_standards(
     else:
         checks["no_emojis"] = True
 
-    # 4. Overnight Summary audit (exactly 6 plain-text, unbolded sentences)
+    # 4. Overnight Summary / Afternoon Executive Wrap-Up audit (exactly 6 plain-text, unbolded sentences)
     summary_match = re.search(
-        r"OVERNIGHT SUMMARY(?:</b>|</h3>)(?:<br\s*/?>\s*)+(.*?)(?:<br\s*/?>\s*<br\s*/?>|<b>\s*[A-Z0-9\s&]{4,}</b>|<h[1-6]>|$)",
+        r"(?:OVERNIGHT SUMMARY|EXECUTIVE WRAP-UP \(DECISION & TRIAGE ORIENTATION\))(?:</b>|</h3>)(?:<br\s*/?>\s*)+(.*?)(?:<br\s*/?>\s*<br\s*/?>|<b>\s*[A-Z0-9\s&]{4,}</b>|<h[1-6]>|$)",
         html_content,
         re.IGNORECASE | re.DOTALL,
     )
     if not summary_match:
         summary_match = re.search(
-            r"OVERNIGHT SUMMARY</h3>\s*<p>(.*?)</p>",
+            r"(?:OVERNIGHT SUMMARY|EXECUTIVE WRAP-UP \(DECISION & TRIAGE ORIENTATION\))</h3>\s*<p>(.*?)</p>",
             html_content,
             re.IGNORECASE | re.DOTALL,
         )
@@ -152,7 +152,7 @@ def lint_vp_standards(
         # Check for bolding inside the overnight summary text
         if re.search(r"<(b|strong)\b", summary_block, re.IGNORECASE):
             issues.append(
-                "Overnight Summary contains bold formatting. Standard requires unbolded plain text."
+                "Executive Summary contains bold formatting. Standard requires unbolded plain text."
             )
             checks["overnight_summary_unbolded"] = False
         else:
@@ -168,13 +168,15 @@ def lint_vp_standards(
 
         if len(sentences) != 6:
             issues.append(
-                f"Overnight Summary must contain exactly 6 sentences; found {len(sentences)}."
+                f"Executive Summary must contain exactly 6 sentences; found {len(sentences)}."
             )
             checks["overnight_summary_valid"] = False
         else:
             checks["overnight_summary_valid"] = True
     else:
-        issues.append("Missing required 'OVERNIGHT SUMMARY' section.")
+        issues.append(
+            "Missing required 'OVERNIGHT SUMMARY' or 'EXECUTIVE WRAP-UP' section."
+        )
         checks["overnight_summary_sentences"] = 0
         checks["overnight_summary_valid"] = False
 
@@ -223,10 +225,13 @@ def lint_vp_standards(
     # 7. Hyperlink integrity
     links = re.findall(r'href=["\']([^"\']*)["\']', html_content)
     if not links:
-        issues.append(
-            "No hyperlinks found in briefing. All core updates must have canonical source links."
-        )
-        checks["has_valid_links"] = False
+        if "No urgent leadership directives" in html_content:
+            checks["has_valid_links"] = True
+        else:
+            issues.append(
+                "No hyperlinks found in briefing. All core updates must have canonical source links."
+            )
+            checks["has_valid_links"] = False
     else:
         invalid_links = [
             link

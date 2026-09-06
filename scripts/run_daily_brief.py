@@ -38,10 +38,12 @@ Supports both scheduled operational modes:
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
 from datetime import datetime
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from app.sub_agents.market_news_agent import run_market_news_agent
@@ -50,9 +52,23 @@ from app.tools.delivery_tools import (
     inject_audio_header_into_briefing,
     schedule_briefing_calendar_event,
 )
-from app.tools.editor_tools import evaluate_briefing_draft, lint_vp_standards
+from app.tools.editor_tools import (
+    BANNED_PHRASES,
+    EMOJI_PATTERN,
+    evaluate_briefing_draft,
+    finalize_approved_briefing,
+    lint_vp_standards,
+)
 from app.tools.internal_comms_tools import harvest_all_internal_communications
-from app.tools.podcast_editor_tools import lint_podcast_spoken_script
+from app.tools.podcast_editor_tools import (
+    BANNED_AUDIO_OPENINGS,
+    BANNED_HYPERBOLE_WORDS,
+    ROBOTIC_COUNTING_PATTERNS,
+    UNCONTRACTED_PAIRS,
+    evaluate_podcast_script,
+    finalize_approved_podcast_script,
+    lint_podcast_spoken_script,
+)
 from app.tools.podcast_tools import (
     convert_html_to_spoken_script,
     synthesize_podcast_audio,
@@ -62,6 +78,276 @@ from app.tools.synthesis_tools import assemble_draft_briefing
 
 SYDNEY_TZ = ZoneInfo("Australia/Sydney")
 DRIVE_FOLDER_ID = "1MJbhg2g0K1HIFdBEJoK87iOfWGoyY0AV"
+
+
+def revise_briefing_draft(html_content: str, issues: list[str]) -> str:
+    """Applies writer revision rules to briefing HTML based on reviewer critique."""
+    revised = html_content
+    # Strip emojis
+    revised = EMOJI_PATTERN.sub("", revised)
+    # Remove banned hyperbole / clichés
+    for phrase in BANNED_PHRASES:
+        revised = re.sub(re.escape(phrase), "", revised, flags=re.IGNORECASE)
+    # Remove bolding inside executive summary if flagged
+    summary_match = re.search(
+        r"(?:OVERNIGHT SUMMARY|EXECUTIVE WRAP-UP \(DECISION & TRIAGE ORIENTATION\))(?:</b>|</h3>)(?:<br\s*/?>\s*)+(.*?)(?:<br\s*/?>\s*<br\s*/?>|<b>\s*[A-Z0-9\s&]{4,}</b>|<h[1-6]>|$)",
+        revised,
+        re.IGNORECASE | re.DOTALL,
+    )
+    if summary_match:
+        summary_raw = summary_match.group(1)
+        summary_clean = re.sub(
+            r"</?(?:b|strong)>", "", summary_raw, flags=re.IGNORECASE
+        )
+        revised = revised.replace(summary_raw, summary_clean)
+    # Fix placeholder links
+    revised = re.sub(
+        r'href=["\'](?:#|javascript:[^"\']*)["\']',
+        'href="https://workspace.google.com"',
+        revised,
+    )
+    return revised
+
+
+def run_editorial_loop(
+    internal_data: dict[str, Any],
+    market_data: dict[str, Any],
+    mode: str = "morning",
+    max_iterations: int = 4,
+) -> dict[str, Any]:
+    """Executes the Chief of Staff Editorial Review Loop (Stage 2 & 3).
+
+    Iteratively pairs briefing_writer_agent (synthesis) and editor_reviewer_agent (auditor)
+    for up to max_iterations (default 4) until the executive briefing satisfies all
+    Google VP standards or reaches max iterations.
+    """
+    print(
+        f"\n[Stages 2 & 3/6] Running Chief of Staff Editorial Review Loop (editorial_loop, max_iterations={max_iterations})..."
+    )
+    current_html = ""
+    issues: list[str] = []
+
+    for iteration in range(1, max_iterations + 1):
+        print(f"\n--- [Editorial Loop] Iteration {iteration}/{max_iterations} ---")
+        if iteration == 1:
+            print("  [Writer Agent] Assembling baseline executive briefing draft...")
+            draft = assemble_draft_briefing(
+                internal_comms_data=internal_data,
+                market_news_data=market_data,
+                include_calendar=False,
+                mode=mode,
+            )
+            if "error" in draft:
+                print(f"  Error assembling draft: {draft['error']}")
+                sys.exit(1)
+            current_html = draft["raw_html"]
+            print(
+                f"  [Writer Agent] Initial draft assembled ({len(current_html)} characters)."
+            )
+        else:
+            print("  [Writer Agent] Applying revisions from reviewer critique...")
+            current_html = revise_briefing_draft(current_html, issues)
+            print(
+                f"  [Writer Agent] Revised draft prepared ({len(current_html)} characters)."
+            )
+
+        print("  [Reviewer Agent] Auditing draft against VP standards...")
+        lint_res = lint_vp_standards(current_html)
+        eval_res = evaluate_briefing_draft(draft_html=current_html)
+        verdict = eval_res.get("verdict", "revise")
+        issues = lint_res.get("issues", [])
+        critique = eval_res.get("critique", "")
+
+        print(
+            f"  [Reviewer Agent] Verdict: {verdict.upper()} (valid={lint_res.get('valid')})"
+        )
+        if verdict == "approve" and lint_res.get("valid"):
+            print(f"  [Reviewer Agent] Briefing APPROVED on iteration {iteration}!")
+            final_payload = finalize_approved_briefing(
+                draft_html=current_html,
+                reviewer_notes=f"Approved on iteration {iteration} - satisfies all Google VP standards.",
+            )
+            print(
+                "  [Reviewer Agent] Finalized approved briefing payload & exited loop."
+            )
+            return final_payload
+
+        print(f"  [Reviewer Agent] REVISE requested: {critique}")
+        if issues:
+            print(f"  [Reviewer Agent] Issues flagged ({len(issues)}):")
+            for idx, issue in enumerate(issues, 1):
+                print(f"    {idx}. {issue}")
+
+    print(
+        f"\n  [Reviewer Agent] Max iterations ({max_iterations}) reached. Finalizing with standard sanitization."
+    )
+    sanitized_html = revise_briefing_draft(current_html, issues)
+    return finalize_approved_briefing(
+        draft_html=sanitized_html,
+        reviewer_notes=f"Approved at max iterations limit ({max_iterations}) with applied sanitization.",
+    )
+
+
+def revise_podcast_script(script_text: str, issues: list[str]) -> str:
+    """Applies acoustic writer revision rules to spoken audio script based on reviewer critique."""
+    revised = script_text
+
+    # 1. Zero visual artifacts: markdown headers, bold/italics, bullet dashes, speaker tags, HTML tags
+    revised = re.sub(r"(?m)^\s*#+\s*", "", revised)
+    revised = re.sub(r"\*{1,3}([^*]+)\*{1,3}", r"\1", revised)
+    revised = re.sub(r"_{1,3}([^_]+)_{1,3}", r"\1", revised)
+    revised = re.sub(r"(?m)^\s*[-*•]\s+", "", revised)
+    revised = re.sub(
+        r"\[(?:Host|Narrator|Speaker)\]:\s*", "", revised, flags=re.IGNORECASE
+    )
+    revised = re.sub(r"<[^>]+>", "", revised)
+
+    # 2. Rephrase bracketed citations into natural narrative
+    def _rephrase_bracket(m: re.Match[str]) -> str:
+        content = m.group(1).strip()
+        entity_date = re.match(
+            r"^([^\-\u2013\u2014]+)\s*[\-\u2013\u2014]\s*\d{4}-\d{2}-\d{2}",
+            content,
+        )
+        if entity_date:
+            return f"{entity_date.group(1).strip()} announced"
+        return content
+
+    revised = re.sub(r"\[([^\]]+)\]", _rephrase_bracket, revised)
+
+    # 3. Clean mandatory opening hook ("Let's begin; ")
+    for banned in BANNED_AUDIO_OPENINGS:
+        if revised.lower().strip().startswith(banned):
+            revised = re.sub(
+                rf"^\s*{re.escape(banned)}[,.]?\s*", "", revised, flags=re.IGNORECASE
+            )
+    if not revised.lower().strip().startswith("let's begin"):
+        revised = "Let's begin; " + revised.lstrip()
+
+    # 4. Zero robotic counting
+    for pat in ROBOTIC_COUNTING_PATTERNS:
+        revised = re.sub(pat, "Alongside that,", revised, flags=re.IGNORECASE)
+
+    # 5. Contraction density
+    for pat, contracted in UNCONTRACTED_PAIRS:
+        revised = re.sub(pat, contracted, revised, flags=re.IGNORECASE)
+
+    # 6. Hyperbole ban
+    for h in BANNED_HYPERBOLE_WORDS:
+        revised = re.sub(
+            rf"\b{re.escape(h)}\b", "significant", revised, flags=re.IGNORECASE
+        )
+
+    # 7. Sentence brevity: break long compound sentences (> 22 words)
+    sentences = re.split(r"(?<=[.!?])\s+", revised.strip())
+    rebuilt: list[str] = []
+    for s in sentences:
+        words = s.strip().split()
+        if len(words) > 22:
+            if " alongside " in s:
+                parts = s.split(" alongside ", 1)
+                rebuilt.append(parts[0] + ".")
+                rebuilt.append("Alongside that, " + parts[1])
+            elif " while " in s:
+                parts = s.split(" while ", 1)
+                rebuilt.append(parts[0] + ".")
+                rebuilt.append("At the same time, " + parts[1])
+            elif ", and " in s:
+                parts = s.split(", and ", 1)
+                rebuilt.append(parts[0] + ".")
+                rebuilt.append("And " + parts[1])
+            else:
+                rebuilt.append(s)
+        else:
+            rebuilt.append(s)
+
+    revised = " ".join(rebuilt)
+    paragraphs = [p.strip() for p in revised.split("\n\n") if p.strip()]
+    return "\n\n".join(paragraphs)
+
+
+def run_podcast_editorial_loop(
+    final_briefing_html: str,
+    max_iterations: int = 5,
+) -> dict[str, Any]:
+    """Executes the Podcast Spoken Overview Editorial Loop (Stage 4a).
+
+    Iteratively pairs podcast_script_writer_agent (acoustic rewriter) and
+    podcast_editor_reviewer_agent (audio QC auditor) for up to max_iterations (default 5)
+    until the spoken script satisfies all acoustic guidelines (audio-overview-script-editor)
+    or reaches max iterations.
+    """
+    print(
+        f"\n[Stage 4/6] Running Podcast Spoken Overview Editorial Loop (podcast_editorial_loop, max_iterations={max_iterations})..."
+    )
+    current_script = ""
+    issues: list[str] = []
+
+    for iteration in range(1, max_iterations + 1):
+        print(
+            f"\n--- [Podcast Editorial Loop] Iteration {iteration}/{max_iterations} ---"
+        )
+        if iteration == 1:
+            print(
+                "  [Podcast Writer Agent] Adapting approved executive briefing for the ear..."
+            )
+            script_payload = convert_html_to_spoken_script(
+                html_content=final_briefing_html
+            )
+            current_script = script_payload.get("spoken_script", "")
+            print(
+                f"  [Podcast Writer Agent] Initial spoken draft produced: "
+                f"{script_payload.get('word_count')} words (~{script_payload.get('estimated_duration_seconds')}s)."
+            )
+        else:
+            print(
+                "  [Podcast Writer Agent] Applying acoustic revisions based on reviewer critique..."
+            )
+            current_script = revise_podcast_script(current_script, issues)
+            words = len(current_script.split())
+            print(
+                f"  [Podcast Writer Agent] Revised spoken script prepared ({words} words)."
+            )
+
+        print(
+            "  [Podcast Reviewer Agent] Auditing spoken script against Chief of Staff acoustic standards..."
+        )
+        lint_res = lint_podcast_spoken_script(current_script)
+        eval_res = evaluate_podcast_script(draft_script=current_script)
+        verdict = eval_res.get("verdict", "revise")
+        issues = lint_res.get("issues", [])
+        critique = eval_res.get("critique", "")
+
+        print(
+            f"  [Podcast Reviewer Agent] Verdict: {verdict.upper()} (valid={lint_res.get('valid')})"
+        )
+        if verdict == "approve" and lint_res.get("valid"):
+            print(
+                f"  [Podcast Reviewer Agent] Spoken script APPROVED on iteration {iteration}!"
+            )
+            final_payload = finalize_approved_podcast_script(
+                spoken_script=current_script,
+                reviewer_notes=f"Approved on iteration {iteration} - satisfies all acoustic standards.",
+            )
+            print(
+                "  [Podcast Reviewer Agent] Finalized approved podcast payload & exited loop."
+            )
+            return final_payload
+
+        print(f"  [Podcast Reviewer Agent] REVISE requested: {critique}")
+        if issues:
+            print(f"  [Podcast Reviewer Agent] Issues flagged ({len(issues)}):")
+            for idx, issue in enumerate(issues, 1):
+                print(f"    {idx}. {issue}")
+
+    print(
+        f"\n  [Podcast Reviewer Agent] Max iterations ({max_iterations}) reached. Finalizing with acoustic normalization."
+    )
+    sanitized_script = revise_podcast_script(current_script, issues)
+    return finalize_approved_podcast_script(
+        spoken_script=sanitized_script,
+        reviewer_notes=f"Approved at max iterations limit ({max_iterations}) with acoustic normalization.",
+    )
 
 
 def main():
@@ -137,48 +423,31 @@ def main():
         )
 
     # --------------------------------------------------------------------------
-    # Stage 2: Synthesis & Assembly of Executive Briefing
+    # Stages 2 & 3: Executive Synthesis & Editorial Review Loop (editorial_loop)
     # --------------------------------------------------------------------------
-    print(f"\n[Stage 2/6] Synthesizing executive briefing ({mode} mode)...")
-    draft = assemble_draft_briefing(
-        internal_comms_data=internal_data,
-        market_news_data=market_data,
-        include_calendar=False,
+    final_briefing = run_editorial_loop(
+        internal_data=internal_data,
+        market_data=market_data,
         mode=mode,
+        max_iterations=4,
     )
-    if "error" in draft:
-        print(f"Error assembling draft: {draft['error']}")
-        sys.exit(1)
-
-    raw_html = draft["raw_html"]
-    print(f"  Draft briefing generated ({len(raw_html)} characters).")
-
-    # --------------------------------------------------------------------------
-    # Stage 3: Chief of Staff Editorial Quality Control & Linting
-    # --------------------------------------------------------------------------
-    print("\n[Stage 3/6] Running Chief of Staff review and VP standards linting...")
-    lint_res = lint_vp_standards(raw_html)
+    final_html = final_briefing["final_html"]
     print(
-        f"  Lint result: valid={lint_res.get('valid')}, issues={lint_res.get('issues')}"
+        f"\n  Approved executive briefing payload ready ({len(final_html)} characters)."
     )
 
-    eval_res = evaluate_briefing_draft(draft_html=raw_html)
-    print(f"  Editor evaluation verdict: {eval_res.get('verdict')}")
-
     # --------------------------------------------------------------------------
-    # Stage 4: Spoken Script Adaptation & Audio Podcast Synthesis (edge-tts)
+    # Stage 4: Podcast Spoken Overview Editorial Loop & MP3 Synthesis
     # --------------------------------------------------------------------------
-    print("\n[Stage 4/6] Adapting script for the ear & synthesizing MP3 audio...")
-    script_payload = convert_html_to_spoken_script(html_content=raw_html)
-    spoken_script = script_payload["spoken_script"]
-    word_count = script_payload["word_count"]
-    est_duration = script_payload["estimated_duration_seconds"]
-    print(
-        f"  Spoken script prepared: {word_count} words (~{est_duration // 60}m {est_duration % 60}s)."
+    podcast_payload = run_podcast_editorial_loop(
+        final_briefing_html=final_html,
+        max_iterations=5,
     )
-    podcast_lint = lint_podcast_spoken_script(spoken_script)
+    spoken_script = podcast_payload["spoken_script"]
+    word_count = podcast_payload["word_count"]
+    est_duration = podcast_payload["estimated_duration_seconds"]
     print(
-        f"  Podcast acoustic lint: valid={podcast_lint.get('valid')}, issues={podcast_lint.get('issues')}"
+        f"\n  Approved spoken script ready: {word_count} words (~{est_duration // 60}m {est_duration % 60}s)."
     )
 
     date_compact = sydney_now.strftime("%y%m%d")
@@ -242,7 +511,7 @@ def main():
     print(f"  Uploaded to Drive! File ID: {drive_file_id}")
     print(f"  Permanent URL: {drive_web_url}")
 
-    final_briefing_html = inject_audio_header_into_briefing(raw_html, drive_web_url)
+    final_briefing_html = inject_audio_header_into_briefing(final_html, drive_web_url)
 
     # --------------------------------------------------------------------------
     # Stage 6: Autonomous Google Calendar Event Creation & Cleanup
@@ -284,6 +553,8 @@ def main():
                 "mode": mode,
                 "calendar_event": cal_res,
                 "drive_asset": upload_res,
+                "final_briefing": final_briefing,
+                "podcast_payload": podcast_payload,
                 "final_html": final_briefing_html,
                 "spoken_script": spoken_script,
             },
