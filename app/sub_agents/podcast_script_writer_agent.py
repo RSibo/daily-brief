@@ -48,9 +48,10 @@ If revising, address the specific acoustic critique provided in `{{podcast_scrip
 
 ### Audio Overview Transformation Rules ("Written for the Ear"):
 
-1. **Zero-Fluff Opening**:
+1. **Mandatory Opening Hook**:
+   - Start the script with the exact opening phrase: "Let's begin; " (or "Let's begin; ...") followed immediately by the first operational update.
+   - Example: "Let's begin; overnight communications remained focused on partner escalations..."
    - Strictly NO introductory pleasantries or host banter (NEVER say "Good morning Rob", "Welcome back", or "Here is your audio brief").
-   - Open immediately on the first operational sentence of the overnight orientation.
 
 2. **Narrative Rephrasing of Bracketed Citations**:
    - NEVER read bracketed dates or source tags out loud!
@@ -77,8 +78,11 @@ If revising, address the specific acoustic critique provided in `{{podcast_scrip
    - Strictly output pure spoken text with blank lines between natural vocal paragraphs.
    - NO markdown symbols (`#`, `*`, `_`, `[ ]`, `>`), NO bullet dashes (`- `), and NO stage tags (`[Host]:`, `(pause)`).
 
-7. **Target Brevity**:
-   - Keep the entire overview punchy and focused (target 350 to 650 words).
+7. **Target Runtime & Word Depth (6 to 15 Minutes)**:
+   - The podcast duration must be 6 to 15 minutes, depending on content volume and impact.
+   - At 130–150 words per minute (at 1.05x speed), this corresponds to approximately 800 to 2,400 words.
+   - If content is impactful with extensive leadership, customer, and frontier AI updates, expand with rich operational context, strategic significance, and next steps to sustain up to 15 minutes (~2,200 to 2,400 words).
+   - If updates are light, provide complete background context to reach at least 6 minutes (~800 words).
 
 ### Execution Directives:
 - Emit your finalized spoken text directly in your response.

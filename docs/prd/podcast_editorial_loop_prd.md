@@ -54,7 +54,7 @@ flowchart LR
 - **Tone:** Decisive, crisp, authoritative, high-tempo, calm.
 - **Audience:** Robert Sibo (`rsibo@google.com`) listening while walking or commuting.
 - **Pacing:** 130–150 words per minute; delivery tailored for 1.05x speed synthesis.
-- **Target Runtime:** 2.5 to 4.5 minutes (~350 to 700 words).
+- **Target Runtime:** 6 to 15 minutes (~800 to 2,400 words), depending on content volume and impact. If impactful, runs up to 15 minutes covering all updates with deep operational context.
 
 ### 2.2 Acoustic Transformation Matrix (The "Written-to-Spoken" Rules)
 
@@ -66,7 +66,7 @@ flowchart LR
 | **Nested Clauses** | Sentences over 20 words | Linear **Subject $\rightarrow$ Verb $\rightarrow$ Object** | Max 18 words per sentence. Split complex sentences into two punchy statements. |
 | **Pacing & Cadence** | Monotone delivery | Em-dashes (`—`) & ellipses (`...`) | Insert half-second breathing pauses before key statistics or outcomes. |
 | **Acronyms** | Mispronounced words (`VAIS`) | Phonetic hyphenation | `V-A-I-S`, `S-W-E`, `D-R-Z`, `F-L-W`, `A-P-A-C` |
-| **Opening Pleasantries** | Host banter ("Good morning Rob!") | Zero-Fluff Opening | Open directly with the lead operational orientation. |
+| **Opening Hook** | Host banter ("Good morning Rob!") or jumping in raw | Decisive Hook | Start with *"Let's begin; "* followed immediately by the first operational orientation. |
 
 ---
 
@@ -74,16 +74,16 @@ flowchart LR
 
 ### 3.1 Sub-Agent 1: `podcast_script_writer_agent`
 - **Agent Type:** ADK `Agent` (LLM-backed)
-- **Model:** `THROUGHPUT_MODEL` (`gemini-flash-latest`)
+- **Model:** `THROUGHPUT_MODEL` (resolved dynamically from `app.config.THROUGHPUT_MODEL`, never hardcoded)
 - **System Instruction:** Embedded with `CHIEF_OF_STAFF_CONSTITUTION` and `audio-overview-script-editor` directives.
 - **Input State Keys:**
   - `state['final_briefing']`: Approved written HTML briefing.
   - `state['podcast_script_critique']`: Actionable feedback from previous editor iteration (if revising).
 - **Output Key:** `state['podcast_script_draft']`
 - **Core Directives:**
-  1. Digest the factual content of `{final_briefing}`.
-  2. Rewrite into a linear, conversational spoken script structured into natural paragraphs separated by blank lines.
-  3. Transform all bracketed sources (`[Company - Date] Action`) into natural narrative phrases.
+  1. Open the script with the mandatory phrase: *"Let's begin; "* followed directly by the lead update.
+  2. Digest the factual content of `{final_briefing}` and expand with full operational context, impact analysis, and next steps to sustain a 6 to 15 minute runtime (~800 to 2,400 words).
+  3. Transform all bracketed sources (`[Company - Date] Action`) into natural narrative phrases (*"Google DeepMind released GPT-6..."*).
   4. Enforce strict sentence brevity (cap at 18 words/sentence) and high contraction density ($\ge 80\%$).
   5. Strip 100% of markdown syntax (`*`, `#`, `_`, `[ ]`, `>`, bullets).
 
@@ -91,7 +91,7 @@ flowchart LR
 
 ### 3.2 Sub-Agent 2: `podcast_editor_reviewer_agent`
 - **Agent Type:** ADK `Agent` (LLM-backed with deterministic linting tools)
-- **Model:** `ANALYTICAL_MODEL` (`gemini-2.5-pro` or `gemini-flash-latest`)
+- **Model:** `ANALYTICAL_MODEL` (resolved centrally from `app.config.ANALYTICAL_MODEL`, never hardcoded)
 - **System Instruction:** Audio Quality Control & VP Briefing Auditor.
 - **Tools:**
   - `lint_podcast_spoken_script`: Automated regex and heuristic linter.
@@ -107,9 +107,9 @@ flowchart LR
 | **No Robotic Counting** | Does not contain *"item number one"*, *"firstly"*, *"secondly"*. | Word boundary search |
 | **Contraction Density** | Spoken contractions used in $\ge 80\%$ of applicable verb pairs. | Contraction ratio check |
 | **Sentence Brevity** | Zero sentences exceeding 18 words. | Sentence token count |
-| **Clean Opening** | Opens directly with operational signal; no greeting or intro fluff. | Opening phrase filter |
+| **Mandatory Opening Hook** | Starts with *"Let's begin; "* with zero greeting pleasantries (*"Good morning"*). | Opening phrase check |
 | **Hyperbole Ban** | Prohibits unquoted buzzwords (*"game-changer"*, *"critical emergency"*). | Banned vocabulary scan |
-| **Word Limit** | Total word count between 250 and 750 words. | Word count check |
+| **Word Limit** | Total script word count supports 6–15 min runtime (~800 to 2,400 words). | Word count check |
 
 ---
 

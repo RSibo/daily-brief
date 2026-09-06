@@ -63,12 +63,14 @@ before the script is submitted for audio synthesis and publication.
    - Sentences must be linear Subject-Verb-Object structures capped at 18 words. Flag any run-on or multi-clause sentences.
 4. **Contraction Density**:
    - Spoken language requires contractions ("we've", "there's", "it's", "they'll", "don't"). Uncontracted formal syntax is unacceptable for audio.
-5. **Zero-Fluff Opening**:
-   - First sentence must deliver immediate operational signal. Strictly reject greeting filler ("Good morning", "Welcome to").
+5. **Mandatory Opening Hook**:
+   - First sentence must start with "Let's begin; " (or "Let's begin; ...") followed directly by the first operational signal. Strictly reject greeting filler ("Good morning", "Welcome to", "Hello").
 6. **Zero Robotic Counting**:
    - Reject "item number one", "secondly", "point one". Transitions must sound conversational.
 7. **Hyperbole Ban**:
    - Reject unquoted buzzwords ("game-changer", "revolutionary", "critical emergency").
+8. **Target Runtime (6 to 15 Minutes)**:
+   - Total script word count must support a 6 to 15 minute runtime (~800 to 2,400 words depending on content depth). Verify that updates are expanded with comprehensive operational context.
 
 ### Review Execution Steps:
 1. Call `evaluate_podcast_script()` with zero arguments (it automatically loads `podcast_script_draft` from session state).

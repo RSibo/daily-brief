@@ -211,12 +211,19 @@ def lint_podcast_spoken_script(
     else:
         checks["no_robotic_counting"] = True
 
-    # 4. Clean Open (Zero greeting or pleasantry fluff)
+    # 4. Mandatory Opening Hook: Must begin with "Let's begin; " and contain zero greeting filler
     first_sentence = re.split(r"[.!?]\s+", script_text.strip())[0].lower()
     has_banned_open = any(first_sentence.startswith(b) for b in BANNED_AUDIO_OPENINGS)
+    starts_with_lets_begin = lower_text.startswith("let's begin")
+
     if has_banned_open:
         issues.append(
-            f"Prohibited opening pleasantry detected ('{first_sentence[:40]}...'). Open immediately with the lead business signal."
+            f"Prohibited opening pleasantry detected ('{first_sentence[:40]}...'). Remove greeting filler."
+        )
+        checks["clean_open"] = False
+    elif not starts_with_lets_begin:
+        issues.append(
+            "Script must open with the mandatory phrase 'Let's begin; ' followed immediately by the first operational update."
         )
         checks["clean_open"] = False
     else:
@@ -280,17 +287,17 @@ def lint_podcast_spoken_script(
     else:
         checks["sentence_brevity_valid"] = True
 
-    # 8. Word Count Check (Target: 80 - 850 words)
+    # 8. Word Count Check (Target: 6 to 15 minutes = ~800 to 2,400 words, depending on content)
     total_words = len(script_text.split())
     checks["word_count"] = total_words
-    if total_words < 80:
+    if total_words < 100:
         issues.append(
-            f"Script is too brief ({total_words} words). Ensure all key leadership, hot list, and market movements are covered."
+            f"Script is too brief ({total_words} words). Target runtime is 6 to 15 minutes (~800 to 2,400 words depending on content depth). Expand updates with full operational context."
         )
         checks["word_count_valid"] = False
-    elif total_words > 950:
+    elif total_words > 2600:
         issues.append(
-            f"Script is too long ({total_words} words). Executive audio overview must remain concise (aim for 300–700 words)."
+            f"Script exceeds 15-minute runtime ceiling ({total_words} words). Executive audio overview must remain under 2,400 words (15 minutes maximum)."
         )
         checks["word_count_valid"] = False
     else:

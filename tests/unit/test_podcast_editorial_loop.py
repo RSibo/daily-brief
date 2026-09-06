@@ -37,13 +37,13 @@ from app.tools.podcast_editor_tools import (
 )
 
 SAMPLE_VALID_SPOKEN_SCRIPT = """
-Overnight communications remained focused on partner escalations, product confirmations, and regional go-to-market priorities. Senior leadership channels were stable with no emergency directives received. Commercial deal motions are progressing with critical review gates scheduled for this week. Cross-functional execution streams remain active for the day ahead.
+Let's begin; overnight communications remained focused on partner escalations, product confirmations, and regional go-to-market priorities. Senior leadership channels were stable with no emergency directives received. Commercial deal motions are progressing with critical review gates scheduled for this week. Cross-functional execution streams remain active for the day ahead.
 
-In leadership communications and core updates... There's no urgent leadership directives or direct report escalations over the past twenty-four hours.
+In leadership communications and core updates... There's no urgent leadership directives or direct report escalations over the past twenty-four hours. Simon's team confirmed that regional engineering bandwidth is aligned for our key enterprise rollouts. We've ensured that all customer blockers have dedicated engineers assigned before the morning review gates.
 
-Turning to our hot list priorities... We've seen no new movements reported on the Optus Model Armor blocker, Woolworths, or local ML processing.
+Turning to our hot list priorities... We've seen no new movements reported on the Optus Model Armor blocker, Woolworths, or local ML processing. We're keeping these items on active watch until engineering verifies the security patches later today.
 
-Looking outward at AI market movements... OpenAI released GPT-6 Astra with recurrent depth reasoning for multi-step agentic workflows. Google DeepMind launched Gemini 3.8 Flash setting new benchmarks for long-horizon software engineering. And Meta AI released Muse Spark 1.3 focused on agentic coding efficiency with twenty percent fewer tool calls.
+Looking outward at AI market movements... OpenAI released GPT-6 Astra with recurrent depth reasoning for multi-step agentic workflows. That's a significant shift in how model developers approach complex, multi-step problem solving. Google DeepMind launched Gemini 3.8 Flash setting new benchmarks for long-horizon software engineering. And Meta AI released Muse Spark 1.3 focused on agentic coding efficiency with twenty percent fewer tool calls. We'll monitor ecosystem adoption as developers start integrating these platforms into production workflows.
 """.strip()
 
 SAMPLE_SCRIPT_WITH_BRACKETS = """
