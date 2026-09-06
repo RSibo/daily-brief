@@ -131,9 +131,9 @@ def convert_html_to_spoken_script(
         )
 
         # 2. Conversational Acoustic Signposting
-        # Remove Overnight Summary header so it opens directly with no greeting fluff
+        # Remove Overnight Summary or Executive Wrap-up header so it opens directly with no greeting fluff
         text = re.sub(
-            r"(?:<b>|<h3>)\s*(?:1\.\s*)?OVERNIGHT SUMMARY\s*(?:</b>|</h3>)(?:<br\s*/?>)*",
+            r"(?:<b>|<h3>)\s*(?:1\.\s*)?(?:OVERNIGHT SUMMARY|EXECUTIVE WRAP-UP[^<]*)\s*(?:</b>|</h3>)(?:<br\s*/?>)*",
             "",
             text,
             flags=re.IGNORECASE,

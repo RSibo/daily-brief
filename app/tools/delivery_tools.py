@@ -77,17 +77,25 @@ def schedule_briefing_calendar_event(
     briefing_html: str,
     podcast_asset: dict[str, Any] | None = None,
     event_date_str: str | None = None,
+    summary: str = "Your Morning Brief",
+    start_time: str = "06:00:00",
+    end_time: str = "06:30:00",
+    attachment_title: str | None = None,
     mock: bool = True,
 ) -> dict[str, Any]:
-    """Places the 30-minute private, free slot ('Your Morning Brief') on Google Calendar.
+    """Places the 30-minute private, free slot on Google Calendar.
 
-    Target schedule: 06:00 AM to 06:30 AM Sydney time with the full HTML briefing
+    Target schedule: Defaults to 06:00 AM to 06:30 AM Sydney time with the full HTML briefing
     in the event description and the Drive MP3 asset attached natively.
 
     Args:
         briefing_html: Full HTML executive briefing text.
         podcast_asset: Optional PodcastAssetPayload dictionary with drive_web_url and drive_file_id.
         event_date_str: Target date in YYYY-MM-DD format (defaults to current Sydney date).
+        summary: Event summary title (e.g. 'Your Morning Brief' or 'Day In Review').
+        start_time: Event start time in HH:MM:SS format (Sydney local time).
+        end_time: Event end time in HH:MM:SS format (Sydney local time).
+        attachment_title: Optional custom attachment title.
         mock: Whether to use deterministic mock event generation for offline/CI execution.
 
     Returns:
@@ -96,8 +104,18 @@ def schedule_briefing_calendar_event(
     try:
         now_sydney = datetime.now(SYDNEY_TZ)
         date_str = event_date_str or now_sydney.strftime("%Y-%m-%d")
-        start_iso = f"{date_str}T06:00:00+10:00"
-        end_iso = f"{date_str}T06:30:00+10:00"
+        start_dt = datetime.strptime(
+            f"{date_str} {start_time}", "%Y-%m-%d %H:%M:%S"
+        ).replace(tzinfo=SYDNEY_TZ)
+        end_dt = datetime.strptime(
+            f"{date_str} {end_time}", "%Y-%m-%d %H:%M:%S"
+        ).replace(tzinfo=SYDNEY_TZ)
+        start_iso = start_dt.isoformat()
+        end_iso = end_dt.isoformat()
+
+        att_title = (
+            attachment_title or f"[{now_sydney.strftime('%y%m%d')}]-Daily Brief.mp3"
+        )
 
         drive_url = podcast_asset.get("drive_web_url") if podcast_asset else None
         if drive_url and "Listen to Brief" not in briefing_html:
@@ -114,7 +132,7 @@ def schedule_briefing_calendar_event(
             html_link = f"https://calendar.google.com/calendar/event?eid={event_id}"
             return {
                 "event_id": event_id,
-                "summary": "Your Morning Brief",
+                "summary": summary,
                 "start_time": start_iso,
                 "end_time": end_iso,
                 "timezone": "Australia/Sydney",
@@ -133,7 +151,7 @@ def schedule_briefing_calendar_event(
             "mutate",
             "create",
             "--summary",
-            "Your Morning Brief",
+            summary,
             "--start",
             start_iso,
             "--end",
@@ -153,7 +171,7 @@ def schedule_briefing_calendar_event(
                     "--attachment-url",
                     drive_url,
                     "--attachment-title",
-                    f"[{now_sydney.strftime('%y%m%d')}]-Daily Brief.mp3",
+                    att_title,
                 ]
             )
         proc = subprocess.run(cmd, capture_output=True, text=True, check=True)
@@ -182,13 +200,13 @@ def schedule_briefing_calendar_event(
                 "--attachment-url",
                 drive_url,
                 "--attachment-title",
-                f"[{now_sydney.strftime('%y%m%d')}]-Daily Brief.mp3",
+                att_title,
             ]
             subprocess.run(att_cmd, capture_output=True, text=True, check=False)
 
         return {
             "event_id": event_id,
-            "summary": "Your Morning Brief",
+            "summary": summary,
             "start_time": start_iso,
             "end_time": end_iso,
             "timezone": "Australia/Sydney",

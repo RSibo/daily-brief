@@ -353,14 +353,15 @@ def assemble_draft_briefing(
     hot_list_config_path: str = "config/hot_list.md",
     tool_context: ToolContext | None = None,
     include_calendar: bool = False,
+    mode: str = "morning",
 ) -> dict[str, Any]:
     """Assembles all synthesized sections into a complete DraftBriefingPayload.
 
     Constructs:
-    1. Overnight Summary (6 sentences plain text).
+    1. Executive Summary / Wrap-up (plain text orientation).
     2. Core Updates & Leadership Directives.
     3. Active Hot List Updates (with 3-day unread qualification).
-    4. AI Market Updates (trailing 72 hours).
+    4. AI Market Updates (trailing 72 hours, included in morning or when available).
     5. Looking at your day ahead... (meeting readiness dossier, only if include_calendar is True).
 
     Args:
@@ -371,6 +372,7 @@ def assemble_draft_briefing(
         hot_list_config_path: Path to config/hot_list.md.
         tool_context: Optional ADK ToolContext for state retrieval and updates.
         include_calendar: Whether to include calendar schedule dossier. Defaults to False.
+        mode: Briefing mode ('morning' or 'afternoon'). Defaults to 'morning'.
 
     Returns:
         Serialized DraftBriefingPayload dictionary conforming to schemas.
@@ -471,16 +473,26 @@ def assemble_draft_briefing(
         )
 
         # Assemble full HTML
+        summary_title = (
+            "OVERNIGHT SUMMARY"
+            if mode == "morning"
+            else "EXECUTIVE WRAP-UP (DECISION & TRIAGE ORIENTATION)"
+        )
         raw_html_blocks = [
-            "<b>OVERNIGHT SUMMARY</b><br>",
+            f"<b>{summary_title}</b><br>",
             f"{orientation}<br><br>",
             "<b>CORE UPDATES & LEADERSHIP DIRECTIVES</b>",
             core_html,
             "<br><b>ACTIVE HOT LIST UPDATES</b>",
             hot_list_html,
-            "<br><b>AI MARKET UPDATES (TRAILING 72 HOURS)</b>",
-            market_html,
         ]
+        if mode == "morning" or market_items:
+            raw_html_blocks.extend(
+                [
+                    "<br><b>AI MARKET UPDATES (TRAILING 72 HOURS)</b>",
+                    market_html,
+                ]
+            )
         if include_calendar and agenda_html:
             raw_html_blocks.extend(
                 [
