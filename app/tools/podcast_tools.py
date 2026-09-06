@@ -176,7 +176,7 @@ def convert_html_to_spoken_script(
         text = re.sub(r"\s*\(Meeting link attached\)", "", text, flags=re.IGNORECASE)
 
         # 4. Convert list elements and line breaks
-        text = re.sub(r"<li>", "\n- ", text)
+        text = re.sub(r"<li>", "\n", text)
         text = re.sub(r"<br\s*/?>", "\n", text)
         text = re.sub(r"</p>", "\n\n", text)
 
@@ -191,14 +191,31 @@ def convert_html_to_spoken_script(
             flags=re.IGNORECASE,
         )
 
+        # Strip bracketed date/source tags like [Company - YYYY-MM-DD]
+        text = re.sub(r"\[([^\]]+?)\s*-\s*\d{4}-\d{2}-\d{2}\]\s*", r"\1 ", text)
+        # Strip markdown asterisks
+        text = re.sub(r"\*+", "", text)
+
         # 5. Phonetic Acronym Expansions
         active_map = {**CANONICAL_PHONETIC_MAP, **(phonetic_map or {})}
         for pattern, replacement in active_map.items():
             text = re.sub(pattern, replacement, text)
 
-        # 6. Clean whitespace and paragraph flow
-        clean_lines = [line.strip() for line in text.splitlines() if line.strip()]
+        # 6. Clean whitespace, strip leading bullet dashes/markers, and paragraph flow
+        clean_lines = []
+        for raw_line in text.splitlines():
+            line_str = raw_line.strip()
+            if not line_str:
+                continue
+            # Strip leading bullet/dash markers so spoken text has zero visual artifacts
+            line_str = re.sub(r"^[-*•]\s*", "", line_str).strip()
+            if line_str:
+                clean_lines.append(line_str)
         spoken_script = "\n\n".join(clean_lines)
+
+        # Prepend mandatory acoustic opening hook
+        if not spoken_script.lower().startswith("let's begin"):
+            spoken_script = f"Let's begin; {spoken_script}"
 
         # 7. Word count and estimated duration at 1.05x pace (approx 157.5 words/minute = 2.625 words/sec)
         words = len(spoken_script.split())

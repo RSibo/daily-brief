@@ -52,6 +52,7 @@ from app.tools.delivery_tools import (
 )
 from app.tools.editor_tools import evaluate_briefing_draft, lint_vp_standards
 from app.tools.internal_comms_tools import harvest_all_internal_communications
+from app.tools.podcast_editor_tools import lint_podcast_spoken_script
 from app.tools.podcast_tools import (
     convert_html_to_spoken_script,
     synthesize_podcast_audio,
@@ -174,6 +175,10 @@ def main():
     est_duration = script_payload["estimated_duration_seconds"]
     print(
         f"  Spoken script prepared: {word_count} words (~{est_duration // 60}m {est_duration % 60}s)."
+    )
+    podcast_lint = lint_podcast_spoken_script(spoken_script)
+    print(
+        f"  Podcast acoustic lint: valid={podcast_lint.get('valid')}, issues={podcast_lint.get('issues')}"
     )
 
     date_compact = sydney_now.strftime("%y%m%d")

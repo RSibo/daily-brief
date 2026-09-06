@@ -115,7 +115,7 @@ def test_convert_html_to_spoken_script_zero_greeting_fluff() -> None:
     assert not script.startswith("Welcome to your")
     assert not script.startswith("Here is your")
     assert script.startswith(
-        "Overnight communications remained focused on partner escalations"
+        "Let's begin; Overnight communications remained focused on partner escalations"
     )
 
 
