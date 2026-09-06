@@ -41,6 +41,7 @@ from app.sub_agents.editorial_loop import editorial_loop
 from app.sub_agents.internal_comms_agent import internal_comms_agent
 from app.sub_agents.market_news_agent import market_news_agent
 from app.sub_agents.podcast_creator_agent import podcast_creator_agent
+from app.sub_agents.podcast_editorial_loop import podcast_editorial_loop
 from app.sub_agents.podcast_script_agent import podcast_script_agent
 from app.tools.delivery_tools import (
     cleanup_pipeline_artifacts,
@@ -102,7 +103,9 @@ def test_orchestrator_structure_and_hierarchy() -> None:
     assert isinstance(stage4, SequentialAgent)
     assert stage4.name == "podcast_pipeline"
     assert len(stage4.sub_agents) == 2
-    assert stage4.sub_agents[0].name == podcast_script_agent.name
+    assert stage4.sub_agents[0].name == podcast_editorial_loop.name
+    assert isinstance(stage4.sub_agents[0], LoopAgent)
+    assert stage4.sub_agents[0].max_iterations == 5
     assert stage4.sub_agents[1].name == podcast_creator_agent.name
 
     # Stage 5: Delivery and Cleanup

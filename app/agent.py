@@ -33,6 +33,7 @@ from app.sub_agents.editorial_loop import editorial_loop
 from app.sub_agents.internal_comms_agent import internal_comms_agent
 from app.sub_agents.market_news_agent import market_news_agent
 from app.sub_agents.podcast_creator_agent import podcast_creator_agent
+from app.sub_agents.podcast_editorial_loop import podcast_editorial_loop
 from app.sub_agents.podcast_script_agent import podcast_script_agent
 
 # Configure Google Cloud environment
@@ -54,11 +55,11 @@ harvesters = ParallelAgent(
     ],
 )
 
-# Stage 4: Sequential acoustic rewriting and audio creation
+# Stage 4: Sequential acoustic rewriting (with editorial loop) and audio creation
 podcast_pipeline = SequentialAgent(
     name="podcast_pipeline",
     sub_agents=[
-        podcast_script_agent,
+        podcast_editorial_loop,
         podcast_creator_agent,
     ],
 )

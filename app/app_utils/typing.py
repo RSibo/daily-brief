@@ -199,6 +199,35 @@ class FinalBriefingPayload(BaseModel):
     approved_at: str | None = Field(default=None, description="Approval timestamp")
 
 
+class PodcastScriptDraftPayload(BaseModel):
+    """Working draft produced by podcast_script_writer_agent."""
+
+    spoken_script_draft: str = Field(
+        ...,
+        description="Natural conversational spoken text draft for podcast synthesis",
+    )
+    iteration: int = Field(default=1, description="Editorial loop iteration counter")
+    generated_at: str = Field(..., description="Draft generation timestamp")
+
+
+class PodcastReviewCritiquePayload(BaseModel):
+    """Critique and validation verdict produced by podcast_editor_reviewer_agent."""
+
+    verdict: Literal["approve", "revise"] = Field(
+        ..., description="Editorial review verdict: 'approve' or 'revise'"
+    )
+    critique: str = Field(
+        ..., description="Actionable critique and guidance for revisions"
+    )
+    issues: list[str] = Field(
+        default_factory=list, description="Specific acoustic or structural issues"
+    )
+    passed: bool = Field(
+        ..., description="Whether the draft passed all acoustic and style checks"
+    )
+    reviewed_at: str = Field(..., description="Review timestamp")
+
+
 class PodcastScriptPayload(BaseModel):
     """Acoustically adapted spoken script produced by podcast_script_agent."""
 
@@ -227,3 +256,4 @@ class PodcastAssetPayload(BaseModel):
     )
     duration_seconds: int = Field(..., description="Actual audio duration in seconds")
     created_at: str = Field(..., description="Upload timestamp")
+
