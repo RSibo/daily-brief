@@ -39,6 +39,7 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -477,11 +478,14 @@ def main():
             f"  Mock audio generated: {mp3_path} ({audio_res.get('duration_seconds')}s)."
         )
     else:
+        uv_bin = (
+            shutil.which("uv") or "/usr/local/google/home/rsibo/.local/bin/uv" or "uv"
+        )
         print(
             f"  Synthesizing audio via edge-tts (en-US-AvaNeural / +5% rate) -> {mp3_path}..."
         )
         tts_cmd = [
-            "uv",
+            uv_bin,
             "run",
             "--with",
             "edge-tts",

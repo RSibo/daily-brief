@@ -16,6 +16,10 @@
 # Evaluates local Sydney time and triggers Morning or Afternoon brief.
 # Self-adjusts for Daylight Saving Time (AEST/AEDT) and Day-of-Week.
 
+export PATH="/usr/local/google/home/rsibo/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+export HOME="/usr/local/google/home/rsibo"
+export USER="rsibo"
+
 WORKSPACE="/usr/local/google/home/rsibo/sandbox/daily-brief"
 UV_BIN="/usr/local/google/home/rsibo/.local/bin/uv"
 
