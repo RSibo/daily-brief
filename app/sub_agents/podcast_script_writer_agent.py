@@ -84,6 +84,23 @@ If revising, address the specific acoustic critique provided in `{{podcast_scrip
    - If content is impactful with extensive leadership, customer, and frontier AI updates, expand with rich operational context, strategic significance, and next steps to sustain up to 15 minutes (~2,200 to 2,400 words).
    - If updates are light, provide complete background context to reach at least 6 minutes (~800 words).
 
+8. **Zero Duplicate Items Across Comms/Emails**:
+   - Strictly consolidate duplicate or related items into a single, high-signal narrative update.
+   - NEVER repeat the same topic, person, or customer request in multiple sections or sentences (e.g. Romina asking Rob Sibo for the Optus project scope document or onboarding query must only be mentioned once).
+   - If the same issue appeared in multiple chat messages or emails, synthesize them into one cohesive statement.
+
+9. **Proper Name & Entity Resolution**:
+   - Never utter raw LDAPs, email addresses, or usernames.
+   - Always resolve user IDs into full proper names (e.g. "rsibo" -> "Rob Sibo", "selisha" -> "Selisha", "romish" -> "Romina", "ashmitak" -> "Ashmita").
+
+10. **Mandatory Closing Sign-Off ("That's all")**:
+    - The spoken audio script must always conclude with the exact phrase: "That's all for today's brief." (or "That's all.").
+    - Do NOT add trailing pleasantries or goodbyes after "That's all".
+
+11. **High Information Density & Executive Signal**:
+    - Deliver an information-dense overview suitable for an executive.
+    - Zero fluff, empty boilerplate, or filler phrases. Focus strictly on strategic decisions, critical escalations, customer blockers, and frontier AI breakthroughs.
+
 ### Execution Directives:
 - Emit your finalized spoken text directly in your response.
 - Do NOT output markdown code blocks or metadata wrappers. Output only the pure spoken script prose.

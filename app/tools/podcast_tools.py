@@ -41,6 +41,7 @@ from zoneinfo import ZoneInfo
 
 from google.adk.tools import ToolContext
 
+from app.app_utils.name_resolver import resolve_all_names_and_identifiers
 from app.app_utils.telemetry import trace_tool
 from app.app_utils.typing import (
     PodcastAssetPayload,
@@ -120,7 +121,7 @@ def convert_html_to_spoken_script(
                 recovery_instruction="Ensure final_briefing contains valid HTML before invoking convert_html_to_spoken_script.",
             ).model_dump()
 
-        text = html_content
+        text = resolve_all_names_and_identifiers(html_content)
 
         # 1. Clean out the top audio listen link if already injected
         text = re.sub(
@@ -216,6 +217,10 @@ def convert_html_to_spoken_script(
         # Prepend mandatory acoustic opening hook
         if not spoken_script.lower().startswith("let's begin"):
             spoken_script = f"Let's begin; {spoken_script}"
+
+        # Enforce mandatory acoustic closing sign-off
+        if not re.search(r"\bthat's all\b", spoken_script.lower()[-150:]):
+            spoken_script = f"{spoken_script}\n\nThat's all for today's brief."
 
         # 7. Word count and estimated duration at 1.05x pace (approx 157.5 words/minute = 2.625 words/sec)
         words = len(spoken_script.split())

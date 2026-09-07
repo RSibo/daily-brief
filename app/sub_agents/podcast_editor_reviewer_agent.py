@@ -65,17 +65,23 @@ before the script is submitted for audio synthesis and publication.
    - Spoken language requires contractions ("we've", "there's", "it's", "they'll", "don't"). Uncontracted formal syntax is unacceptable for audio.
 5. **Mandatory Opening Hook**:
    - First sentence must start with "Let's begin; " (or "Let's begin; ...") followed directly by the first operational signal. Strictly reject greeting filler ("Good morning", "Welcome to", "Hello").
-6. **Zero Robotic Counting**:
-   - Reject "item number one", "secondly", "point one". Transitions must sound conversational.
-7. **Hyperbole Ban**:
-   - Reject unquoted buzzwords ("game-changer", "revolutionary", "critical emergency").
-8. **Target Runtime (6 to 15 Minutes)**:
-   - Total script word count must support a 6 to 15 minute runtime (~800 to 2,400 words depending on content depth). Verify that updates are expanded with comprehensive operational context.
+6. **Mandatory Closing Sign-Off**:
+   - The script must conclude with a proper closing sign-off containing "That's all" (e.g., "That's all for today's brief." or "That's all.").
+7. **Consolidation Across Comms & Emails (Zero Repetition)**:
+   - Zero-tolerance for duplicate items. If a person, customer, or request appears in multiple comms/emails (e.g., Romina asking for the Optus scope document), it must be consolidated into a single crisp mention, not repeated across sections.
+8. **Resolved Names & Zero LDAPs**:
+   - Ensure all usernames/LDAPs and emails are resolved to proper executive names (e.g., "Rob Sibo" instead of "rsibo" or "sibo", "Simon Elisha" instead of "selisha").
+9. **Zero Fluff & High Information Density**:
+   - Strip conversational banter ("Hi Rob", "Hi Sibo"). Deliver a high-density, substantive operational overview for an executive.
+10. **Zero Robotic Counting & Hyperbole Ban**:
+    - Reject "item number one", "secondly", "point one", and unquoted buzzwords ("game-changer", "revolutionary").
+11. **Target Runtime (6 to 15 Minutes)**:
+    - Total script word count must support a 6 to 15 minute runtime (~800 to 2,400 words depending on content depth).
 
 ### Review Execution Steps:
 1. Call `evaluate_podcast_script()` with zero arguments (it automatically loads `podcast_script_draft` from session state).
 2. If revisions are needed (verdict == "revise"):
-   - Provide concise, actionable feedback specifying exactly which sentences are too long, which brackets remain, or where contractions are missing.
+   - Provide concise, actionable feedback specifying exactly which items are duplicated, where fluff/greetings appear, which sentences are too long, or if the closing sign-off is missing.
    - Do NOT approve or call finalize_approved_podcast_script.
 3. If approved (verdict == "approve"):
    - Call `finalize_approved_podcast_script()` with zero arguments (it automatically commits `podcast_script` to session state and escalates).

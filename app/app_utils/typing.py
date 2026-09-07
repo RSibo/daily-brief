@@ -225,6 +225,10 @@ class PodcastReviewCritiquePayload(BaseModel):
     passed: bool = Field(
         ..., description="Whether the draft passed all acoustic and style checks"
     )
+    llm_scores: dict[str, Any] | None = Field(
+        default=None,
+        description="Gemini LLM evaluation scores across readability, suitability, information value, and redundancy",
+    )
     reviewed_at: str = Field(..., description="Review timestamp")
 
 

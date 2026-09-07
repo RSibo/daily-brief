@@ -37,6 +37,7 @@ from zoneinfo import ZoneInfo
 
 from google.adk.tools import ToolContext
 
+from app.app_utils.name_resolver import resolve_all_names_and_identifiers
 from app.app_utils.telemetry import trace_tool
 from app.app_utils.typing import DraftBriefingPayload, StructuredToolError
 
@@ -133,8 +134,19 @@ def synthesize_overnight_summary(
 
         if chat_count > 0:
             chat = (chat_threads or [])[0]
-            subject = chat.get("subject", "team architecture discussions")
-            sentence_3 = f"Across regional chat spaces, discussions centered on {subject} as teams coordinated cross-functional execution."
+            raw_sub = chat.get("subject", "team architecture discussions")
+            clean_sub = resolve_all_names_and_identifiers(raw_sub)
+            clean_sub = re.sub(r"^\[[^\]]+\]\s*", "", clean_sub).strip()
+            clean_sub = re.sub(
+                r"^(?:Hi|Hey|Hello)\s+[^,:]*[,:]?\s*",
+                "",
+                clean_sub,
+                flags=re.IGNORECASE,
+            ).strip()
+            clean_sub = re.sub(r"\s+", " ", clean_sub)
+            if not clean_sub or len(clean_sub) < 5:
+                clean_sub = "cross-functional project execution"
+            sentence_3 = f"Across regional chat spaces, discussions centered on {clean_sub[:60]} as teams coordinated cross-functional execution."
         else:
             sentence_3 = "Regional engineering and go-to-market spaces logged steady daytime progress without blocking dependencies."
 
@@ -155,7 +167,7 @@ def synthesize_overnight_summary(
             sentence_5,
             sentence_6,
         ]
-        return " ".join(sentences)
+        return resolve_all_names_and_identifiers(" ".join(sentences))
 
     sentence_1 = "Overnight communications remained focused on partner escalations, product roadmap confirmations, and regional go-to-market priorities."
 
@@ -169,8 +181,16 @@ def synthesize_overnight_summary(
 
     if chat_count > 0:
         chat = (chat_threads or [])[0]
-        subject = chat.get("subject", "team architecture discussions")
-        sentence_3 = f"Across regional chat spaces, discussions centered on {subject} as teams coordinated cross-functional execution."
+        raw_sub = chat.get("subject", "team architecture discussions")
+        clean_sub = resolve_all_names_and_identifiers(raw_sub)
+        clean_sub = re.sub(r"^\[[^\]]+\]\s*", "", clean_sub).strip()
+        clean_sub = re.sub(
+            r"^(?:Hi|Hey|Hello)\s+[^,:]*[,:]?\s*", "", clean_sub, flags=re.IGNORECASE
+        ).strip()
+        clean_sub = re.sub(r"\s+", " ", clean_sub)
+        if not clean_sub or len(clean_sub) < 5:
+            clean_sub = "cross-functional project execution"
+        sentence_3 = f"Across regional chat spaces, discussions centered on {clean_sub[:60]} as teams coordinated cross-functional execution."
     else:
         sentence_3 = "Regional engineering and go-to-market spaces logged regular progress without blocking dependencies."
 
@@ -293,9 +313,21 @@ def format_hot_list_updates(
             deep_link = item.get("deep_link", "https://mail.google.com")
             subject = item.get("subject", theme)
             snippet = item.get("snippet", "Ongoing discussion.")
+            clean_sub = resolve_all_names_and_identifiers(subject).strip()
+            clean_snip = resolve_all_names_and_identifiers(snippet).strip()
+            sub_core = re.sub(r"^\[[^\]]+\]\s*", "", clean_sub).strip()
+            if sub_core and (
+                sub_core.lower() in clean_snip.lower()
+                or clean_snip.lower().startswith(sub_core.lower()[:25])
+            ):
+                content_desc = clean_snip
+            elif clean_sub and clean_snip:
+                content_desc = f"{clean_sub} — {clean_snip}"
+            else:
+                content_desc = clean_sub or clean_snip or "Ongoing discussion."
             bullet = (
                 f'  <li><b><a href="{deep_link}"><u>{theme}</u></a>:</b> '
-                f"{subject} — {snippet[:160]}</li>"
+                f"{content_desc[:240]}</li>"
             )
             lines.append(bullet)
         else:
@@ -540,7 +572,7 @@ def assemble_draft_briefing(
                     agenda_html,
                 ]
             )
-        full_raw_html = "\n".join(raw_html_blocks)
+        full_raw_html = resolve_all_names_and_identifiers("\n".join(raw_html_blocks))
 
         payload = DraftBriefingPayload(
             executive_orientation=orientation,

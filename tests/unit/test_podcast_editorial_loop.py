@@ -44,6 +44,8 @@ In leadership communications and core updates... There's no urgent leadership di
 Turning to our hot list priorities... We've seen no new movements reported on the Optus Model Armor blocker, Woolworths, or local ML processing. We're keeping these items on active watch until engineering verifies the security patches later today.
 
 Looking outward at AI market movements... OpenAI released GPT-6 Astra with recurrent depth reasoning for multi-step agentic workflows. That's a significant shift in how model developers approach complex, multi-step problem solving. Google DeepMind launched Gemini 3.8 Flash setting new benchmarks for long-horizon software engineering. And Meta AI released Muse Spark 1.3 focused on agentic coding efficiency with twenty percent fewer tool calls. We'll monitor ecosystem adoption as developers start integrating these platforms into production workflows.
+
+That's all for today's brief.
 """.strip()
 
 SAMPLE_SCRIPT_WITH_BRACKETS = """
@@ -52,17 +54,23 @@ Overnight communications remained focused on partner escalations.
 Looking outward at AI market movements:
 [Google DeepMind - 2026-09-02] Launches Gemini 3.8 Flash and Restricted 3.8 Flash Cyber.
 [OpenAI - 2026-09-03] Releases GPT-6 Astra.
+
+That's all for today's brief.
 """.strip()
 
 SAMPLE_SCRIPT_WITH_VISUAL_MARKDOWN = """
 ## Overnight Summary
 * **Optus Blocker**: *There is no update yet.*
 * **Woolworths**: *No updates.*
+
+That's all for today's brief.
 """.strip()
 
 SAMPLE_SCRIPT_WITH_GREETING = """
 Good morning Rob, welcome back to your morning podcast brief!
 Overnight communications remained stable with no major escalations.
+
+That's all for today's brief.
 """.strip()
 
 
@@ -75,6 +83,8 @@ def test_lint_podcast_spoken_script_valid() -> None:
     assert result["checks"]["no_bracketed_sources"] is True
     assert result["checks"]["no_robotic_counting"] is True
     assert result["checks"]["clean_open"] is True
+    assert result["checks"]["clean_ending_valid"] is True
+    assert result["checks"]["no_duplicate_items"] is True
     assert result["checks"]["no_hyperbole"] is True
     assert result["checks"]["contraction_density_valid"] is True
     assert result["checks"]["sentence_brevity_valid"] is True
@@ -114,10 +124,32 @@ def test_lint_detects_robotic_counting() -> None:
 
 def test_lint_detects_banned_hyperbole() -> None:
     """Verifies that corporate buzzwords like 'game-changer' are flagged."""
-    script = "Overnight updates were quiet. OpenAI launched a revolutionary game-changer model for agents."
+    script = "Overnight updates were quiet. OpenAI launched a revolutionary game-changer model for agents.\n\nThat's all for today's brief."
     result = lint_podcast_spoken_script(script)
     assert result["valid"] is False
     assert result["checks"]["no_hyperbole"] is False
+
+
+def test_lint_detects_duplicate_items() -> None:
+    """Verifies that duplicate sentences or redundant customer requests are flagged."""
+    script = """Let's begin; overnight communications remained quiet.
+Romina requested a document for the Optus project scope that Han and Ollie are working on.
+Romina requested a document for the Optus project scope that Han and Ollie are working on.
+
+That's all for today's brief."""
+    result = lint_podcast_spoken_script(script)
+    assert result["valid"] is False
+    assert result["checks"]["no_duplicate_items"] is False
+    assert any("duplicate" in issue.lower() for issue in result["issues"])
+
+
+def test_lint_detects_missing_closing_phrase() -> None:
+    """Verifies that scripts without 'That's all' are flagged."""
+    script = "Let's begin; overnight communications remained focused on key customer deliverables."
+    result = lint_podcast_spoken_script(script)
+    assert result["valid"] is False
+    assert result["checks"]["clean_ending_valid"] is False
+    assert any("that's all" in issue.lower() for issue in result["issues"])
 
 
 def test_evaluate_podcast_script_tool() -> None:
@@ -125,7 +157,7 @@ def test_evaluate_podcast_script_tool() -> None:
     mock_context = MagicMock()
     mock_context.state = {"podcast_script_draft": SAMPLE_VALID_SPOKEN_SCRIPT}
 
-    result = evaluate_podcast_script(tool_context=mock_context)
+    result = evaluate_podcast_script(tool_context=mock_context, use_llm_judge=False)
     assert result["verdict"] == "approve"
     assert result["passed"] is True
     assert len(result["issues"]) == 0

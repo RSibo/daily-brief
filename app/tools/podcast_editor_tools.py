@@ -29,6 +29,8 @@ Implements the quality control and linting engine for the Podcast Editorial Loop
 - Finalizes approved spoken scripts into PodcastScriptPayload and escalates loop.
 """
 
+import json
+import os
 import re
 from datetime import datetime
 from typing import Any
@@ -36,6 +38,7 @@ from zoneinfo import ZoneInfo
 
 from google.adk.tools import ToolContext
 
+from app.app_utils.name_resolver import resolve_all_names_and_identifiers
 from app.app_utils.telemetry import trace_tool
 from app.app_utils.typing import (
     PodcastReviewCritiquePayload,
@@ -302,6 +305,39 @@ def lint_podcast_spoken_script(
     else:
         checks["word_count_valid"] = True
 
+    # 9. Clean Ending Sign-Off ("That's all")
+    has_thats_all = bool(
+        re.search(r"\bthat's all\b", script_text.strip().lower()[-150:])
+    )
+    if not has_thats_all:
+        issues.append(
+            "Script lacks mandatory closing sign-off phrase 'That's all' (e.g. 'That's all for today's brief.')."
+        )
+        checks["clean_ending_valid"] = False
+    else:
+        checks["clean_ending_valid"] = True
+
+    # 10. Duplicate / Repetition Detection Across Comms
+    sentences = [
+        s.strip() for s in re.split(r"(?<=[.!?])\s+", script_text.strip()) if s.strip()
+    ]
+    seen_snippets: set[str] = set()
+    duplicates: list[str] = []
+    for s in sentences:
+        words = re.sub(r"[^\w\s]", "", s.lower()).split()
+        if len(words) >= 6:
+            key = " ".join(words[:10])
+            if key in seen_snippets:
+                duplicates.append(s[:60] + "...")
+            seen_snippets.add(key)
+    if duplicates:
+        issues.append(
+            f"Duplicate sentence/item detected in script: '{duplicates[0]}'. Consolidate redundant mentions into a single update across comms/emails."
+        )
+        checks["no_duplicate_items"] = False
+    else:
+        checks["no_duplicate_items"] = True
+
     is_valid = len(issues) == 0
     return {
         "valid": is_valid,
@@ -310,20 +346,163 @@ def lint_podcast_spoken_script(
     }
 
 
+def grade_podcast_script_with_gemini(
+    draft_script: str,
+    mock: bool = False,
+) -> dict[str, Any]:
+    """Uses Gemini model to evaluate readability, suitability, information value, and redundancy.
+
+    Grades on 4 dimensions:
+    1. Readability & Vocal Flow: Linear sentences, natural acoustic rhythm, smooth cadence.
+    2. Suitability & Tone: Executive Chief of Staff tone, zero conversational banter/pleasantries,
+       mandatory closing sign-off containing 'That's all'.
+    3. Information Value & Signal Density: High ratio of substantive operational facts, decisions,
+       blockers, and external AI developments without empty padding.
+    4. Repetitiveness & Redundancy: Strict check for duplicate items across comms/emails.
+
+    Args:
+        draft_script: Spoken audio transcript to grade.
+        mock: When True, bypasses external model call.
+
+    Returns:
+        Structured evaluation dictionary or empty dict upon failure/offline.
+    """
+    if mock or not draft_script or not draft_script.strip():
+        return {}
+
+    try:
+        import google.auth
+        from google import genai
+
+        from app.config import ANALYTICAL_MODEL
+
+        _, project_id = google.auth.default()
+        client = genai.Client(
+            vertexai=True,
+            project=project_id,
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "global"),
+        )
+        prompt = f"""You are an executive Chief of Staff auditing a spoken audio brief transcript.
+Evaluate this spoken script on 4 rigorous dimensions:
+1. Readability: Linear sentences (max 18 words), natural acoustic rhythm, smooth transitions, high contraction density.
+2. Suitability: Calm, matter-of-fact tone, zero greeting fluff ("Good morning/afternoon", "Welcome"), mandatory closing sign-off containing "That's all".
+3. Information Value & Signal Density: High ratio of signal-to-noise, substantive operational facts, decisions, blockers, and frontier AI developments without vague filler.
+4. Repetitiveness & Redundancy: Strict zero-tolerance for duplicate items across comms/emails. No person, customer, or request should be repeated multiple times redundantly (e.g. asking for the same document or project scope multiple times).
+
+Transcript to evaluate:
+\"\"\"
+{draft_script}
+\"\"\"
+
+Respond with a valid JSON object matching this schema:
+{{
+  "readability_score": <1-10>,
+  "suitability_score": <1-10>,
+  "information_value_score": <1-10>,
+  "redundancy_score": <1-10, where 10 means zero redundancy, 1 means highly repetitive>,
+  "verdict": "<'approve' if scores are >= 8 and zero critical issues remain, otherwise 'revise'>",
+  "critique": "<Concise 2-sentence executive summary of readability, information density, and repetition>",
+  "issues": ["<specific issue 1 if any>"]
+}}
+Return only valid JSON."""
+        resp = client.models.generate_content(
+            model=ANALYTICAL_MODEL,
+            contents=prompt,
+        )
+        text_resp = resp.text.strip()
+        json_match = re.search(r"\{.*\}", text_resp, re.DOTALL)
+        if json_match:
+            return json.loads(json_match.group(0))
+    except Exception:
+        pass
+    return {}
+
+
+def rewrite_podcast_script_with_gemini(
+    draft_script: str,
+    critique: str = "",
+    issues: list[str] | None = None,
+    mock: bool = False,
+) -> str:
+    """Uses Gemini analytical model to rewrite spoken script addressing critique and deduplicating.
+
+    Falls back to original draft if offline, mock, or encountering API errors.
+    """
+    if mock or not draft_script or not draft_script.strip():
+        return draft_script
+
+    issues = issues or []
+    issues_text = "\n".join(f"- {iss}" for iss in issues) if issues else "None"
+
+    try:
+        import google.auth
+        from google import genai
+
+        from app.config import ANALYTICAL_MODEL
+
+        _, project_id = google.auth.default()
+        client = genai.Client(
+            vertexai=True,
+            project=project_id,
+            location=os.environ.get("GOOGLE_CLOUD_LOCATION", "global"),
+        )
+        prompt = f"""You are the podcast_script_writer_agent acting as an executive Chief of Staff.
+Rewrite this draft spoken audio brief to address the reviewer critique and issues:
+
+Reviewer Critique: {critique}
+Issues Flagged:
+{issues_text}
+
+Strict Spoken Audio Rules:
+1. Opening Hook: Must begin with "Let's begin; " immediately followed by the first operational update. No greeting filler.
+2. Zero Duplicate Items: Strictly eliminate duplicate items across comms/emails. Consolidate repeated mentions of the same person, request, or customer topic (e.g. Romina asking Rob Sibo for Optus project scope or onboarding questions) into a single concise update. Never repeat the request.
+3. Proper Name Resolution: Use full names (e.g. Rob Sibo, Romina, Selisha, Ashmita) instead of raw LDAPs or usernames (rsibo, romish, selisha).
+4. Mandatory Closing Sign-Off: Conclude the script with "That's all for today's brief." (or "That's all.").
+5. Linear Sentences & Brevity: Short Subject-Verb-Object sentences (under 18 words).
+6. Contraction Density: Use natural contractions (we've, there's, it's, they'll, that's, don't).
+7. Zero Visual Artifacts: Pure spoken narrative prose only. No markdown, no bullet dashes, no speaker tags.
+
+Current Draft Transcript:
+\"\"\"
+{draft_script}
+\"\"\"
+
+Output only the revised spoken audio script prose with blank lines between paragraphs. Do not wrap in markdown quotes or code fences."""
+        resp = client.models.generate_content(
+            model=ANALYTICAL_MODEL,
+            contents=prompt,
+        )
+        cleaned_text = resp.text.strip()
+        cleaned_text = re.sub(r"^```(?:markdown|text)?\s*", "", cleaned_text)
+        cleaned_text = re.sub(r"\s*```$", "", cleaned_text)
+        if (
+            cleaned_text.lower().startswith("let's begin")
+            or len(cleaned_text.split()) > 100
+        ):
+            return cleaned_text
+    except Exception:
+        pass
+    return draft_script
+
+
 @trace_tool(tool_name="evaluate_podcast_script")
 def evaluate_podcast_script(
     draft_script: str | None = None,
     tool_context: ToolContext | None = None,
+    use_llm_judge: bool = True,
 ) -> dict[str, Any]:
     """Evaluates a draft spoken audio script and returns structured review verdict.
 
-    Performs full acoustic linting and returns 'approve' if valid, or 'revise'
-    with specific, actionable feedback for the podcast script writer agent.
+    Performs acoustic linting and leverages Gemini to grade readability, suitability,
+    information value, and redundancy. Returns 'approve' if valid, or 'revise' with
+    specific, actionable feedback.
 
     Args:
         draft_script: Optional spoken script text to evaluate. If omitted,
             auto-resolves from tool_context.state['podcast_script_draft'].
         tool_context: Optional ADK ToolContext to resolve draft from session state.
+        use_llm_judge: Whether to invoke Gemini LLM-as-judge for signal density
+            and redundancy scoring. Defaults to True.
 
     Returns:
         Serialized PodcastReviewCritiquePayload dictionary.
@@ -345,21 +524,59 @@ def evaluate_podcast_script(
         draft_script = draft_script or ""
         lint_results = lint_podcast_spoken_script(draft_script)
 
-        if lint_results["valid"]:
+        llm_eval: dict[str, Any] = {}
+        if use_llm_judge:
+            llm_eval = grade_podcast_script_with_gemini(draft_script)
+
+        combined_issues = list(lint_results["issues"])
+        if llm_eval and "issues" in llm_eval and isinstance(llm_eval["issues"], list):
+            for iss in llm_eval["issues"]:
+                if iss and iss not in combined_issues:
+                    combined_issues.append(iss)
+
+        llm_verdict = llm_eval.get(
+            "verdict", "approve" if lint_results["valid"] else "revise"
+        )
+        if (
+            lint_results["valid"]
+            and len(combined_issues) == 0
+            and llm_eval.get("readability_score", 0) >= 8
+            and llm_eval.get("suitability_score", 0) >= 8
+            and llm_eval.get("redundancy_score", 0) >= 8
+        ):
+            llm_verdict = "approve"
+
+        is_approved = (
+            lint_results["valid"]
+            and (llm_verdict == "approve")
+            and (len(combined_issues) == 0)
+        )
+
+        if is_approved:
+            critique = (
+                llm_eval.get("critique")
+                or "Script satisfies all acoustic and executive standards: zero visual artifacts, natural narrative transitions, high contraction density, high information density, and punchy sentence length."
+            )
             payload = PodcastReviewCritiquePayload(
                 verdict="approve",
-                critique="Script satisfies all acoustic standards: zero visual artifacts, natural narrative transitions, high contraction density, and punchy sentence length.",
+                critique=critique,
                 issues=[],
                 passed=True,
+                llm_scores=llm_eval if llm_eval else None,
                 reviewed_at=datetime.now(SYDNEY_TZ).isoformat(),
             )
         else:
-            issues_summary = "; ".join(lint_results["issues"])
+            issues_summary = "; ".join(combined_issues)
+            critique = (
+                llm_eval.get("critique")
+                or f"Script requires acoustic revisions before approval: {issues_summary}"
+            )
             payload = PodcastReviewCritiquePayload(
                 verdict="revise",
-                critique=f"Script requires acoustic revisions before approval: {issues_summary}",
-                issues=lint_results["issues"],
+                critique=critique,
+                issues=combined_issues,
                 passed=False,
+                llm_scores=llm_eval if llm_eval else None,
                 reviewed_at=datetime.now(SYDNEY_TZ).isoformat(),
             )
 
@@ -384,9 +601,10 @@ def finalize_approved_podcast_script(
 ) -> dict[str, Any]:
     """Finalizes an approved spoken audio script and prepares state for TTS synthesis.
 
-    Applies canonical phonetic acronym expansions, computes word counts and estimated
-    duration, writes PodcastScriptPayload into tool_context.state['podcast_script'],
-    and triggers loop escalation to advance to podcast_creator_agent.
+    Applies canonical phonetic acronym expansions, resolves names, ensures mandatory
+    'That's all' sign-off, computes word counts and estimated duration, writes
+    PodcastScriptPayload into tool_context.state['podcast_script'], and triggers
+    loop escalation to advance to podcast_creator_agent.
 
     Args:
         spoken_script: Optional approved spoken script text. If omitted,
@@ -426,9 +644,16 @@ def finalize_approved_podcast_script(
                 recovery_instruction="Ensure podcast_script_draft contains valid spoken prose.",
             ).model_dump()
 
+        # Apply name resolution
+        spoken_script = resolve_all_names_and_identifiers(spoken_script)
+
         # Apply phonetic expansions to guarantee TTS pronunciation
         for pattern, replacement in CANONICAL_PHONETIC_MAP.items():
             spoken_script = re.sub(pattern, replacement, spoken_script)
+
+        # Enforce closing That's all sign-off
+        if not re.search(r"\bthat's all\b", spoken_script.lower()[-150:]):
+            spoken_script = f"{spoken_script}\n\nThat's all for today's brief."
 
         # Normalize paragraphs and spacing
         paragraphs = [p.strip() for p in spoken_script.split("\n\n") if p.strip()]

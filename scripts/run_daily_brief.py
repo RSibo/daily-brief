@@ -47,6 +47,7 @@ from datetime import datetime
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from app.app_utils.name_resolver import resolve_all_names_and_identifiers
 from app.sub_agents.market_news_agent import run_market_news_agent
 from app.tools.delivery_tools import (
     cleanup_pipeline_artifacts,
@@ -69,6 +70,7 @@ from app.tools.podcast_editor_tools import (
     evaluate_podcast_script,
     finalize_approved_podcast_script,
     lint_podcast_spoken_script,
+    rewrite_podcast_script_with_gemini,
 )
 from app.tools.podcast_tools import (
     convert_html_to_spoken_script,
@@ -107,6 +109,8 @@ def revise_briefing_draft(html_content: str, issues: list[str]) -> str:
         'href="https://workspace.google.com"',
         revised,
     )
+    # Resolve all raw user IDs, emails, and space hashes to proper names
+    revised = resolve_all_names_and_identifiers(revised)
     return revised
 
 
@@ -239,30 +243,62 @@ def revise_podcast_script(script_text: str, issues: list[str]) -> str:
             rf"\b{re.escape(h)}\b", "significant", revised, flags=re.IGNORECASE
         )
 
-    # 7. Sentence brevity: break long compound sentences (> 22 words)
-    sentences = re.split(r"(?<=[.!?])\s+", revised.strip())
-    rebuilt: list[str] = []
-    for s in sentences:
-        words = s.strip().split()
-        if len(words) > 22:
-            if " alongside " in s:
-                parts = s.split(" alongside ", 1)
-                rebuilt.append(parts[0] + ".")
-                rebuilt.append("Alongside that, " + parts[1])
-            elif " while " in s:
-                parts = s.split(" while ", 1)
-                rebuilt.append(parts[0] + ".")
-                rebuilt.append("At the same time, " + parts[1])
-            elif ", and " in s:
-                parts = s.split(", and ", 1)
-                rebuilt.append(parts[0] + ".")
-                rebuilt.append("And " + parts[1])
-            else:
-                rebuilt.append(s)
-        else:
-            rebuilt.append(s)
+    # 7. Name and identifier resolution
+    revised = resolve_all_names_and_identifiers(revised)
 
-    revised = " ".join(rebuilt)
+    # 8. Consolidate and deduplicate duplicate items across comms/emails
+    raw_sentences = [
+        s.strip() for s in re.split(r"(?<=[.!?])\s+", revised.strip()) if s.strip()
+    ]
+    seen_prefixes: set[str] = set()
+    deduped_sentences: list[str] = []
+    seen_romina_optus = False
+
+    for s in raw_sentences:
+        clean_s = s.strip()
+        lower_s = clean_s.lower()
+
+        # Consolidate known cross-channel repeats (e.g. Romina asking for Optus scope / onboarding)
+        is_romina_optus = ("romina" in lower_s or "romish" in lower_s) and (
+            "optus" in lower_s or "scope" in lower_s or "onboarding" in lower_s
+        )
+        if is_romina_optus:
+            if seen_romina_optus:
+                continue
+            seen_romina_optus = True
+
+        words = re.sub(r"[^\w\s]", "", lower_s).split()
+        if len(words) >= 6:
+            prefix = " ".join(words[:8])
+            if prefix in seen_prefixes:
+                continue
+            seen_prefixes.add(prefix)
+
+        # Sentence brevity: break long compound sentences (> 22 words)
+        if len(words) > 22:
+            if " alongside " in clean_s:
+                parts = clean_s.split(" alongside ", 1)
+                deduped_sentences.append(parts[0] + ".")
+                deduped_sentences.append("Alongside that, " + parts[1])
+            elif " while " in clean_s:
+                parts = clean_s.split(" while ", 1)
+                deduped_sentences.append(parts[0] + ".")
+                deduped_sentences.append("At the same time, " + parts[1])
+            elif ", and " in clean_s:
+                parts = clean_s.split(", and ", 1)
+                deduped_sentences.append(parts[0] + ".")
+                deduped_sentences.append("And " + parts[1])
+            else:
+                deduped_sentences.append(clean_s)
+        else:
+            deduped_sentences.append(clean_s)
+
+    revised = " ".join(deduped_sentences)
+
+    # 9. Clean Ending Sign-off ("That's all")
+    if not re.search(r"\bthat's all\b", revised.lower()[-150:]):
+        revised = f"{revised}\n\nThat's all for today's brief."
+
     paragraphs = [p.strip() for p in revised.split("\n\n") if p.strip()]
     return "\n\n".join(paragraphs)
 
@@ -283,6 +319,7 @@ def run_podcast_editorial_loop(
     )
     current_script = ""
     issues: list[str] = []
+    critique: str = ""
 
     for iteration in range(1, max_iterations + 1):
         print(
@@ -304,7 +341,13 @@ def run_podcast_editorial_loop(
             print(
                 "  [Podcast Writer Agent] Applying acoustic revisions based on reviewer critique..."
             )
-            current_script = revise_podcast_script(current_script, issues)
+            # Invoke Gemini rewriter to dynamically address critique and deduplicate
+            rewritten = rewrite_podcast_script_with_gemini(
+                draft_script=current_script,
+                critique=critique,
+                issues=issues,
+            )
+            current_script = revise_podcast_script(rewritten, issues)
             words = len(current_script.split())
             print(
                 f"  [Podcast Writer Agent] Revised spoken script prepared ({words} words)."
@@ -314,10 +357,29 @@ def run_podcast_editorial_loop(
             "  [Podcast Reviewer Agent] Auditing spoken script against Chief of Staff acoustic standards..."
         )
         lint_res = lint_podcast_spoken_script(current_script)
-        eval_res = evaluate_podcast_script(draft_script=current_script)
+        eval_res = evaluate_podcast_script(
+            draft_script=current_script, use_llm_judge=True
+        )
         verdict = eval_res.get("verdict", "revise")
         issues = lint_res.get("issues", [])
         critique = eval_res.get("critique", "")
+
+        # Display Gemini model evaluation metrics if present
+        llm_scores = eval_res.get("llm_scores")
+        if llm_scores and isinstance(llm_scores, dict):
+            print("  [Podcast Reviewer Agent] Gemini Model Evaluation:")
+            if "readability_score" in llm_scores:
+                print(f"    - Readability: {llm_scores.get('readability_score')}/10")
+            if "suitability_score" in llm_scores:
+                print(f"    - Suitability: {llm_scores.get('suitability_score')}/10")
+            if "information_value_score" in llm_scores:
+                print(
+                    f"    - Information Value: {llm_scores.get('information_value_score')}/10"
+                )
+            if "redundancy_score" in llm_scores:
+                print(
+                    f"    - Redundancy & Deduplication: {llm_scores.get('redundancy_score')}/10"
+                )
 
         print(
             f"  [Podcast Reviewer Agent] Verdict: {verdict.upper()} (valid={lint_res.get('valid')})"

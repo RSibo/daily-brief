@@ -35,6 +35,7 @@ from zoneinfo import ZoneInfo
 
 from google.adk.tools import ToolContext
 
+from app.app_utils.name_resolver import detect_unresolved_identifiers
 from app.app_utils.telemetry import trace_tool
 from app.app_utils.typing import FinalBriefingPayload, StructuredToolError
 
@@ -245,6 +246,17 @@ def lint_vp_standards(
             checks["has_valid_links"] = False
         else:
             checks["has_valid_links"] = True
+
+    # 8. Unresolved identifiers (raw emails, LDAPs, space hashes)
+    unresolved = detect_unresolved_identifiers(html_content)
+    if unresolved:
+        issues.append(
+            f"Unresolved user ID, LDAP, or email address detected: {unresolved[:3]}. "
+            "Resolve all emails, LDAPs, and raw space hashes to proper names (e.g. 'rsibo' -> 'Rob Sibo')."
+        )
+        checks["no_unresolved_identifiers"] = False
+    else:
+        checks["no_unresolved_identifiers"] = True
 
     is_valid = len(issues) == 0
     return {

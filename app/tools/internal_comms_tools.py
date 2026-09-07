@@ -34,6 +34,11 @@ from zoneinfo import ZoneInfo
 
 from google.adk.tools import ToolContext
 
+from app.app_utils.name_resolver import (
+    SPACE_LABEL_MAP,
+    resolve_all_names_and_identifiers,
+    resolve_ldap_or_email_to_name,
+)
 from app.app_utils.telemetry import trace_tool
 from app.app_utils.typing import (
     CommunicationItem,
@@ -482,8 +487,9 @@ def scan_target_chat_spaces(
             else item.get("sender")
         )
         if isinstance(sender_obj, dict):
-            sender_name = (
+            sender_name = resolve_ldap_or_email_to_name(
                 sender_obj.get("display_name")
+                or sender_obj.get("displayName")
                 or sender_obj.get("name")
                 or "Team Member"
             )
@@ -492,12 +498,16 @@ def scan_target_chat_spaces(
                 or f"{sender_name.lower().replace(' ', '.')}@google.com"
             )
         elif isinstance(sender_obj, str):
-            sender_name = item.get("sender_name") or sender_obj
+            sender_name = resolve_ldap_or_email_to_name(
+                item.get("sender_name") or sender_obj
+            )
             sender_email = (
                 sender_obj if "@" in sender_obj else f"{sender_obj.lower()}@google.com"
             )
         else:
-            sender_name = item.get("sender_name") or "Team Member"
+            sender_name = resolve_ldap_or_email_to_name(
+                item.get("sender_name") or "Team Member"
+            )
             sender_email = "team@google.com"
 
         # Suppress Rob's self-sent chatter
@@ -528,12 +538,17 @@ def scan_target_chat_spaces(
             or item.get("space")
             or "Google Chat"
         )
-        space_name = (
-            item.get("_space_name")
+        resolved_space_name = (
+            SPACE_LABEL_MAP.get(space_id)
+            or item.get("_space_name")
             or space_name_lookup.get(space_id)
             or item.get("display_name")
             or space_id
         )
+        if re.match(r"^(?:spaces/|AAQA|sUqv|AAAA)[a-zA-Z0-9_-]+$", resolved_space_name):
+            resolved_space_name = SPACE_LABEL_MAP.get(
+                resolved_space_name, "Chat Update"
+            )
 
         msg_name = msg_obj.get("name") or item.get("name") or item.get("id") or ""
         deep_link = (
@@ -554,12 +569,15 @@ def scan_target_chat_spaces(
         first_line = text.splitlines()[0]
         first_line_clean = re.sub(r"@[A-Za-z0-9_\.\-]+", "", first_line).strip()
         first_line_clean = re.sub(r"\s+", " ", first_line_clean)
+        first_line_clean = resolve_all_names_and_identifiers(first_line_clean)
         subject = (
-            f"[{space_name}] {first_line_clean[:80]}"
+            f"[{resolved_space_name}] {first_line_clean[:80]}"
             if first_line_clean
-            else f"[{space_name}] Update"
+            else f"[{resolved_space_name}] Update"
         )
-        snippet = compact_content_budget(text, max_chars=300)
+        snippet = resolve_all_names_and_identifiers(
+            compact_content_budget(text, max_chars=300)
+        )
 
         sender_ldap = sender_email.split("@")[0].lower()
         if sender_ldap in LEADERSHIP_USERNAMES:
@@ -758,19 +776,26 @@ def harvest_all_internal_communications(
         if "optus" in t_name.lower():
             kw_list.extend(["optus", "vais", "model armor", "model armour"])
         elif "woolworths" in t_name.lower() or "woolies" in t_name.lower():
-            kw_list.extend(
-                ["woolworths", "woolies", "bigw", "shopping agent", "flw", "ge"]
-            )
+            kw_list.extend(["woolworths", "woolies", "bigw", "shopping agent", "flw"])
         elif "drz" in t_name.lower():
             kw_list.extend(["drz", "data residency", "ml processing", "in-country"])
 
+        kw_regex = re.compile(
+            r"\b(?:" + "|".join(re.escape(kw) for kw in kw_list) + r")\b",
+            re.IGNORECASE,
+        )
         matched_items = []
+        seen_threads = set()
         for c in all_comms:
+            t_id = c.get("thread_id") or c.get("subject", "")
+            if t_id in seen_threads:
+                continue
             content_str = (
                 f"{c.get('subject', '')} {c.get('snippet', '')} {c.get('body') or ''}"
-            ).lower()
-            if any(kw in content_str for kw in kw_list):
+            )
+            if kw_regex.search(content_str):
                 matched_items.append(c)
+                seen_threads.add(t_id)
         if matched_items:
             hot_list_matches[t_name] = matched_items
 
