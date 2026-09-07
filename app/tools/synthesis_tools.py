@@ -99,17 +99,19 @@ def synthesize_overnight_summary(
     chat_threads: list[dict[str, Any]] | None = None,
     calendar_events: list[dict[str, Any]] | None = None,
     include_calendar: bool = False,
+    mode: str = "morning",
 ) -> str:
-    """Synthesizes exactly 6 plain-text, unbolded sentences summarizing overnight comms.
+    """Synthesizes exactly 6 plain-text, unbolded sentences summarizing communications.
 
     Written strictly in the voice of a calm, authoritative Chief of Staff
-    briefing the leader on communications received since 5:00 PM previous evening.
+    briefing the leader on communications received (overnight or throughout the workday).
 
     Args:
         leadership_threads: Triaged leadership communication items.
         chat_threads: High-priority chat space or DM items.
         calendar_events: Optional today's agenda items.
         include_calendar: Whether to include calendar schedule details. Defaults to False.
+        mode: Briefing mode ('morning' or 'afternoon'). Defaults to 'morning'.
 
     Returns:
         String containing exactly 6 plain-text unbolded sentences.
@@ -117,6 +119,43 @@ def synthesize_overnight_summary(
     lead_count = len(leadership_threads or [])
     chat_count = len(chat_threads or [])
     event_count = len(calendar_events or [])
+
+    if mode == "afternoon":
+        if lead_count > 0:
+            lead = (leadership_threads or [])[0]
+            sender = lead.get("sender_name", "Leadership")
+            subject = lead.get("subject", "priority directive")
+            sentence_1 = f"Senior leadership communications today centered on {sender}'s follow-up regarding {subject} with a specific request for technical validation."
+            sentence_2 = "Follow-up workstreams and direct report channels concluded today's coordination cleanly."
+        else:
+            sentence_1 = "Workday communications across senior leadership channels concluded with no outstanding escalations or pending approvals required tonight."
+            sentence_2 = "Senior leadership and direct report channels remained stable throughout the workday with no emergency directives received."
+
+        if chat_count > 0:
+            chat = (chat_threads or [])[0]
+            subject = chat.get("subject", "team architecture discussions")
+            sentence_3 = f"Across regional chat spaces, discussions centered on {subject} as teams coordinated cross-functional execution."
+        else:
+            sentence_3 = "Regional engineering and go-to-market spaces logged steady daytime progress without blocking dependencies."
+
+        sentence_4 = "Commercial deal motions and customer partner alignment progressed across enterprise accounts during the day."
+
+        if include_calendar and event_count > 0:
+            sentence_5 = f"Your calendar today concluded {event_count} scheduled commitments and executive engagements."
+        else:
+            sentence_5 = "Cross-functional execution streams wrapped up today's milestones and prioritized tomorrow's next steps."
+
+        sentence_6 = "All required briefing dossiers, background contexts, and decision options are organized below for your review."
+
+        sentences = [
+            sentence_1,
+            sentence_2,
+            sentence_3,
+            sentence_4,
+            sentence_5,
+            sentence_6,
+        ]
+        return " ".join(sentences)
 
     sentence_1 = "Overnight communications remained focused on partner escalations, product roadmap confirmations, and regional go-to-market priorities."
 
@@ -433,6 +472,7 @@ def assemble_draft_briefing(
             chat_threads=chat_threads,
             calendar_events=calendar_events,
             include_calendar=include_calendar,
+            mode=mode,
         )
 
         # 2. Core updates
@@ -486,7 +526,7 @@ def assemble_draft_briefing(
             "<br><b>ACTIVE HOT LIST UPDATES</b>",
             hot_list_html,
         ]
-        if mode == "morning" or market_items:
+        if mode in ("morning", "afternoon") or market_items:
             raw_html_blocks.extend(
                 [
                     "<br><b>AI MARKET UPDATES (TRAILING 72 HOURS)</b>",

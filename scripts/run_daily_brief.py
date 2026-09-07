@@ -403,25 +403,29 @@ def main():
             lookback_hours=72, allow_mock_fallback=is_mock
         )
     else:
-        # Afternoon mode: 12-hour workday window
+        # Afternoon mode: 12-hour workday window + market news
         lookback_hours = 12
         print(
-            f"\n[Stage 1/6] Harvesting daytime internal comms (lookback: {lookback_hours}h)..."
+            f"\n[Stage 1/6] Harvesting daytime internal comms (lookback: {lookback_hours}h) & market news..."
         )
         internal_data = harvest_all_internal_communications(
             lookback_hours=lookback_hours
         )
-        market_data = {"announcements": []}
+        print(
+            "  Harvesting live frontier AI market news via market_news_agent & google_search..."
+        )
+        market_data = run_market_news_agent(
+            lookback_hours=72, allow_mock_fallback=is_mock
+        )
 
     print(
         f"  Internal Comms: {len(internal_data.get('leadership_threads', []))} leadership, "
         f"{len(internal_data.get('chat_space_threads', []))} chat, "
         f"{len(internal_data.get('calendar_events', []))} calendar"
     )
-    if mode == "morning":
-        print(
-            f"  Market Announcements: {len(market_data.get('announcements', []))} frontier AI developments"
-        )
+    print(
+        f"  Market Announcements: {len(market_data.get('announcements', []))} frontier AI developments"
+    )
 
     # --------------------------------------------------------------------------
     # Stages 2 & 3: Executive Synthesis & Editorial Review Loop (editorial_loop)

@@ -26,7 +26,7 @@ import json
 import os
 import re
 import subprocess
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -339,13 +339,14 @@ def scan_target_chat_spaces(
     lookback_hours: int = 24,
     test_mode_fixtures: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Scans 1:1 direct messages, @mentions, and designated team spaces in Google Chat.
+    """Scans direct @mentions and designated team spaces in Google Chat.
 
-    Dynamically reads spaces from config/chat_spaces.md, checks for unread DMs
-    and mentions within the past 24 hours, and suppresses self-sent chatter.
+    Dynamically reads spaces from config/chat_spaces.md and extracts messages
+    and mentions across the lookback window without filtering on unread status.
+    Suppresses self-sent chatter.
 
     Args:
-        lookback_hours: Lookback duration in hours (strictly 24).
+        lookback_hours: Lookback duration in hours (e.g. 12, 24).
         test_mode_fixtures: Optional pre-set fixtures for offline unit testing.
 
     Returns:
@@ -353,16 +354,19 @@ def scan_target_chat_spaces(
         CommunicationItem schema, or a StructuredToolError upon failure.
     """
     chat_items: list[dict[str, Any]] = []
+    seen_message_ids: set[str] = set()
 
     if test_mode_fixtures is not None:
         if isinstance(test_mode_fixtures, dict):
             raw_dms = test_mode_fixtures.get("dms", [])
             raw_mentions = test_mode_fixtures.get("mentions", [])
+            raw_space_msgs = test_mode_fixtures.get("spaces", [])
         elif isinstance(test_mode_fixtures, list):
             raw_dms = []
             raw_mentions = test_mode_fixtures
+            raw_space_msgs = []
         else:
-            raw_dms, raw_mentions = [], []
+            raw_dms, raw_mentions, raw_space_msgs = [], [], []
     elif not os.path.exists(GCHAT_CLI):
         return StructuredToolError(
             error_code="GCHAT_CLI_NOT_FOUND",
@@ -370,9 +374,7 @@ def scan_target_chat_spaces(
             recovery_instruction="Verify gchat binary mount or run in test mode with fixtures.",
         ).model_dump()
     else:
-        dms_res = _execute_cli_command([GCHAT_CLI, "readonly", "dm-report", "--json"])
-        raw_dms = dms_res if isinstance(dms_res, list) else []
-
+        # 1. Fetch direct mentions over the lookback window (not filtered on unread)
         mentions_res = _execute_cli_command(
             [
                 GCHAT_CLI,
@@ -385,57 +387,227 @@ def scan_target_chat_spaces(
         )
         raw_mentions = mentions_res if isinstance(mentions_res, list) else []
 
-    # Process DMs
-    for dm in raw_dms:
-        sender = dm.get("sender", dm.get("user", "Unknown"))
-        if "rsibo" in sender.lower():
-            continue  # Skip self-sent DMs
-        text = dm.get("text", dm.get("snippet", ""))
-        thread_id = dm.get("id", dm.get("space", "dm_unknown"))
-        chat_items.append(
-            CommunicationItem(
-                source="chat",
-                thread_id=thread_id,
-                sender_name=sender,
-                sender_email=f"{sender.lower()}@google.com"
-                if "@" not in sender
-                else sender,
-                timestamp=dm.get("createTime", datetime.now(UTC).isoformat()),
-                subject=f"1:1 DM from {sender}",
-                snippet=compact_content_budget(text, max_chars=240),
-                deep_link=f"https://chat.google.com/room/{thread_id}"
-                if thread_id.startswith("spaces/")
-                else "https://chat.google.com",
-                is_vip=True,
-                vip_category="direct_report"
-                if sender.lower() in DIRECT_REPORT_USERNAMES
-                else "leadership",
-                requires_action=True,
-                aging_days=0,
-            ).model_dump()
+        # 2. Fetch recent messages across included target chat spaces
+        raw_space_msgs = []
+        target_spaces = load_target_chat_spaces()
+        for sp in target_spaces:
+            sp_id = sp.get("space_id", "")
+            sp_name = sp.get("name", sp_id)
+            if not sp_id:
+                continue
+            msgs_out = None
+            if sp_id.startswith("spaces/AAAA") or sp_id.startswith("AAAA"):
+                msgs_out = _execute_cli_command(
+                    [
+                        GCHAT_CLI,
+                        "readonly",
+                        "list-messages-by-thread",
+                        "--space",
+                        sp_id,
+                        "--max",
+                        "10",
+                        "--json",
+                    ]
+                )
+            else:
+                msgs_out = _execute_cli_command(
+                    [
+                        GCHAT_CLI,
+                        "readonly",
+                        "list-messages",
+                        "--space",
+                        sp_id,
+                        "--hours",
+                        str(lookback_hours),
+                        "--max",
+                        "10",
+                        "--json",
+                    ]
+                )
+                if isinstance(msgs_out, dict) and msgs_out.get("error"):
+                    msgs_out = _execute_cli_command(
+                        [
+                            GCHAT_CLI,
+                            "readonly",
+                            "list-messages-by-thread",
+                            "--space",
+                            sp_id,
+                            "--max",
+                            "10",
+                            "--json",
+                        ]
+                    )
+
+            if isinstance(msgs_out, list):
+                for m in msgs_out:
+                    if isinstance(m, dict):
+                        m["_space_name"] = sp_name
+                        m["_space_id"] = sp_id
+                        raw_space_msgs.append(m)
+            elif isinstance(msgs_out, dict) and not msgs_out.get("error"):
+                for thread_list in msgs_out.values():
+                    if isinstance(thread_list, list):
+                        for m in thread_list:
+                            if isinstance(m, dict):
+                                m["_space_name"] = sp_name
+                                m["_space_id"] = sp_id
+                                raw_space_msgs.append(m)
+
+        raw_dms = []
+
+    # Map target space names
+    space_name_lookup = {
+        s.get("space_id", ""): s.get("name", "") for s in load_target_chat_spaces()
+    }
+
+    candidates = raw_mentions + raw_space_msgs + raw_dms
+    cutoff_time = datetime.now(UTC) - timedelta(hours=lookback_hours + 1)
+
+    for item in candidates:
+        msg_obj = item.get("message") if isinstance(item.get("message"), dict) else item
+        text = (
+            msg_obj.get("text")
+            or msg_obj.get("formatted_text")
+            or item.get("text")
+            or item.get("snippet")
+            or ""
+        ).strip()
+        if not text:
+            continue
+
+        # Extract sender details
+        sender_obj = (
+            msg_obj.get("sender")
+            if isinstance(msg_obj.get("sender"), dict)
+            else item.get("sender")
+        )
+        if isinstance(sender_obj, dict):
+            sender_name = (
+                sender_obj.get("display_name")
+                or sender_obj.get("name")
+                or "Team Member"
+            )
+            sender_email = (
+                sender_obj.get("email")
+                or f"{sender_name.lower().replace(' ', '.')}@google.com"
+            )
+        elif isinstance(sender_obj, str):
+            sender_name = item.get("sender_name") or sender_obj
+            sender_email = (
+                sender_obj if "@" in sender_obj else f"{sender_obj.lower()}@google.com"
+            )
+        else:
+            sender_name = item.get("sender_name") or "Team Member"
+            sender_email = "team@google.com"
+
+        # Suppress Rob's self-sent chatter
+        if "rsibo" in sender_name.lower() or "rsibo@" in sender_email.lower():
+            continue
+
+        # Timestamp & recency check
+        timestamp_str = (
+            msg_obj.get("create_time")
+            or msg_obj.get("createTime")
+            or item.get("create_time")
+            or item.get("createTime")
+            or item.get("timestamp")
+        )
+        if test_mode_fixtures is None and timestamp_str:
+            try:
+                msg_dt = datetime.fromisoformat(timestamp_str.replace("Z", "+00:00"))
+                if msg_dt < cutoff_time:
+                    continue
+            except Exception:
+                pass
+        else:
+            timestamp_str = datetime.now(UTC).isoformat()
+
+        space_id = (
+            item.get("_space_id")
+            or item.get("space_id")
+            or item.get("space")
+            or "Google Chat"
+        )
+        space_name = (
+            item.get("_space_name")
+            or space_name_lookup.get(space_id)
+            or item.get("display_name")
+            or space_id
         )
 
-    # Process Mentions
-    for m in raw_mentions:
-        sender = m.get("sender", "Unknown")
-        if "rsibo" in sender.lower():
+        msg_name = msg_obj.get("name") or item.get("name") or item.get("id") or ""
+        deep_link = (
+            msg_obj.get("url")
+            or item.get("url")
+            or (
+                f"https://chat.google.com/room/{space_id}"
+                if space_id and space_id != "Google Chat"
+                else "https://chat.google.com"
+            )
+        )
+
+        dedup_key = msg_name or deep_link or f"{sender_name}_{timestamp_str}"
+        if dedup_key in seen_message_ids:
             continue
-        text = m.get("text", "")
-        space_id = m.get("space", "unknown_space")
+        seen_message_ids.add(dedup_key)
+
+        first_line = text.splitlines()[0]
+        first_line_clean = re.sub(r"@[A-Za-z0-9_\.\-]+", "", first_line).strip()
+        first_line_clean = re.sub(r"\s+", " ", first_line_clean)
+        subject = (
+            f"[{space_name}] {first_line_clean[:80]}"
+            if first_line_clean
+            else f"[{space_name}] Update"
+        )
+        snippet = compact_content_budget(text, max_chars=300)
+
+        sender_ldap = sender_email.split("@")[0].lower()
+        if sender_ldap in LEADERSHIP_USERNAMES:
+            vip_cat = "leadership"
+            is_vip = True
+        elif sender_ldap in DIRECT_REPORT_USERNAMES:
+            vip_cat = "direct_report"
+            is_vip = True
+        else:
+            vip_cat = "strategic_partner"
+            is_vip = False
+
+        requires_action = (
+            any(
+                k in text.lower()
+                for k in [
+                    "approval",
+                    "approve",
+                    "block",
+                    "urgent",
+                    "ask",
+                    "decision",
+                    "escalat",
+                    "confirm",
+                    "can you",
+                    "could you",
+                    "question",
+                    "?",
+                ]
+            )
+            or "rsibo" in text.lower()
+            or "dm" in item.get("id", "").lower()
+            or item.get("user", "").lower() in DIRECT_REPORT_USERNAMES
+        )
+
         chat_items.append(
             CommunicationItem(
                 source="chat",
-                thread_id=m.get("id", space_id),
-                sender_name=sender,
-                sender_email=f"{sender.lower()}@google.com"
-                if "@" not in sender
-                else sender,
-                timestamp=m.get("createTime", datetime.now(UTC).isoformat()),
-                subject=f"@rsibo Mention in {space_id}",
-                snippet=compact_content_budget(text, max_chars=240),
-                deep_link=f"https://chat.google.com/room/{space_id}",
-                is_vip=False,
-                requires_action=True,
+                thread_id=msg_name or dedup_key,
+                sender_name=sender_name,
+                sender_email=sender_email,
+                timestamp=timestamp_str,
+                subject=subject,
+                snippet=snippet,
+                deep_link=deep_link,
+                is_vip=is_vip,
+                vip_category=vip_cat,
+                requires_action=requires_action,
                 aging_days=0,
             ).model_dump()
         )
@@ -570,6 +742,38 @@ def harvest_all_internal_communications(
         cal_res.get("events", []) if cal_res.get("status") == "success" else []
     )
 
+    # 4. Correlate with active Hot List themes
+    hot_list_themes = load_active_hot_list_themes()
+    all_comms = leadership + direct_reports + chat_threads
+    hot_list_matches: dict[str, list[dict[str, Any]]] = {}
+
+    for theme in hot_list_themes:
+        t_name = theme.get("theme_name", "")
+        if not t_name:
+            continue
+        aliases = [
+            a.strip().lower() for a in theme.get("aliases", "").split(",") if a.strip()
+        ]
+        kw_list = [t_name.lower(), *aliases]
+        if "optus" in t_name.lower():
+            kw_list.extend(["optus", "vais", "model armor", "model armour"])
+        elif "woolworths" in t_name.lower() or "woolies" in t_name.lower():
+            kw_list.extend(
+                ["woolworths", "woolies", "bigw", "shopping agent", "flw", "ge"]
+            )
+        elif "drz" in t_name.lower():
+            kw_list.extend(["drz", "data residency", "ml processing", "in-country"])
+
+        matched_items = []
+        for c in all_comms:
+            content_str = (
+                f"{c.get('subject', '')} {c.get('snippet', '')} {c.get('body') or ''}"
+            ).lower()
+            if any(kw in content_str for kw in kw_list):
+                matched_items.append(c)
+        if matched_items:
+            hot_list_matches[t_name] = matched_items
+
     payload = InternalHarvestPayload(
         harvest_timestamp=sydney_now,
         lookback_hours=lookback_hours,
@@ -577,7 +781,7 @@ def harvest_all_internal_communications(
         direct_report_threads=direct_reports,
         chat_space_threads=chat_threads,
         calendar_events=calendar_events,
-        hot_list_matches={},
+        hot_list_matches=hot_list_matches,
     )
     result = payload.model_dump()
     if tool_context is not None and hasattr(tool_context, "state"):

@@ -22,3 +22,5 @@ It is dynamically loaded on each execution so spaces can be added, updated, or r
 | Shopping Agent for JAPAC | `spaces/AAQAO06LKEc` |
 | APAC AI Interlock AUNZ | `AAAAZknEYtA` |
 | APAC AI Tech Forum | `AAAAfZzfhSg` |
+| AI GTM Specialists | `spaces/AAAA_gX6ESA` |
+| Global GenAI FDE Team | `spaces/AAAAHD8qbfA` |
