@@ -21,6 +21,7 @@ from app.sub_agents.briefing_writer_agent import briefing_writer_agent
 from app.tools.synthesis_tools import (
     assemble_draft_briefing,
     format_calendar_agenda,
+    format_chat_announcements,
     format_core_updates,
     format_hot_list_updates,
     parse_hot_list_themes,
@@ -332,3 +333,41 @@ def test_assemble_draft_briefing_zero_args_and_tool_context():
     assert "Claude Sonnet update" in res_ctx["raw_html"]
     assert "draft_briefing" in ctx.state
     assert ctx.state["draft_briefing"]["raw_html"] == res_ctx["raw_html"]
+
+
+def test_format_chat_announcements():
+    """Verifies format_chat_announcements and inclusion in assemble_draft_briefing."""
+    # 1. Test empty fallback
+    empty_html = format_chat_announcements([])
+    assert "No major team announcements" in empty_html
+
+    # 2. Test formatting with sample chat threads
+    chat_threads = [
+        {
+            "thread_id": "spaces/AAAA1234/messages/m1",
+            "sender_name": "Romina Sharifpour",
+            "subject": "[AUNZ AISS] Model Armor Update",
+            "snippet": "Shared the updated Optus architecture document with engineering team.",
+            "deep_link": "https://chat.google.com/room/AAAA1234",
+        }
+    ]
+    chat_html = format_chat_announcements(chat_threads)
+    assert "Romina Sharifpour" in chat_html
+    assert "[AUNZ AISS] Model Armor Update" in chat_html
+    assert "https://chat.google.com/room/AAAA1234" in chat_html
+
+    # 3. Test assemble_draft_briefing includes chat announcements
+    res = assemble_draft_briefing(
+        internal_comms_data={
+            "leadership_threads": [],
+            "direct_report_threads": [],
+            "chat_space_threads": chat_threads,
+            "calendar_events": [],
+            "hot_list_matches": {},
+        },
+        market_news_data={"announcements": []},
+    )
+    assert "error" not in res
+    assert "REGIONAL CHAT & TEAM ANNOUNCEMENTS" in res["raw_html"]
+    assert "Romina Sharifpour" in res["raw_html"]
+    assert res.get("chat_announcements_html") is not None

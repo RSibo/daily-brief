@@ -410,7 +410,7 @@ def scan_target_chat_spaces(
                         "--space",
                         sp_id,
                         "--max",
-                        "10",
+                        "50",
                         "--json",
                     ]
                 )
@@ -425,7 +425,7 @@ def scan_target_chat_spaces(
                         "--hours",
                         str(lookback_hours),
                         "--max",
-                        "10",
+                        "50",
                         "--json",
                     ]
                 )
@@ -438,7 +438,7 @@ def scan_target_chat_spaces(
                             "--space",
                             sp_id,
                             "--max",
-                            "10",
+                            "50",
                             "--json",
                         ]
                     )
@@ -576,7 +576,7 @@ def scan_target_chat_spaces(
             else f"[{resolved_space_name}] Update"
         )
         snippet = resolve_all_names_and_identifiers(
-            compact_content_budget(text, max_chars=300)
+            compact_content_budget(text, max_chars=800)
         )
 
         sender_ldap = sender_email.split("@")[0].lower()

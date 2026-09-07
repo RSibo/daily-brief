@@ -169,6 +169,10 @@ class DraftBriefingPayload(BaseModel):
     core_updates_html: str = Field(
         ..., description="HTML bulleted updates for leadership and critical projects"
     )
+    chat_announcements_html: str | None = Field(
+        default=None,
+        description="HTML section for regional chat space announcements",
+    )
     hot_list_html: str = Field(
         ...,
         description="HTML section for active Hot List themes with 3-day unread check",

@@ -30,6 +30,7 @@ from app.config import ANALYTICAL_MODEL
 from app.prompts.constitution import CHIEF_OF_STAFF_CONSTITUTION
 from app.tools.synthesis_tools import (
     assemble_draft_briefing,
+    format_chat_announcements,
     format_core_updates,
     format_hot_list_updates,
     format_market_updates,
@@ -77,6 +78,7 @@ briefing_writer_agent = Agent(
     tools=[
         synthesize_overnight_summary,
         format_core_updates,
+        format_chat_announcements,
         format_hot_list_updates,
         format_market_updates,
         assemble_draft_briefing,

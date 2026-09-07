@@ -239,7 +239,7 @@ def format_core_updates(
 
     # Deduplicate or group by subject
     seen_threads: set[str] = set()
-    for item in items[:6]:  # Target top high-priority items
+    for item in items[:10]:  # Target top high-priority items
         thread_id = item.get("thread_id", "")
         if thread_id in seen_threads:
             continue
@@ -274,10 +274,54 @@ def format_core_updates(
 
         bullet_html = (
             f'  <li><b>[{topic}] <a href="{deep_link}"><u>{subject}</u></a>:</b> '
-            f'{recency} {sender_name} noted: "{snippet[:180]}...". '
+            f'{recency} {sender_name} noted: "{snippet[:500]}...". '
             f"<b>Action Needed:</b> {action_summary}</li>"
         )
         lines.append(bullet_html)
+
+    lines.append("</ul>")
+    return "\n".join(lines)
+
+
+@trace_tool(tool_name="format_chat_announcements")
+def format_chat_announcements(
+    chat_threads: list[dict[str, Any]] | None = None,
+    max_items: int = 10,
+) -> str:
+    """Formats regional chat space messages and team announcements.
+
+    Args:
+        chat_threads: List of CommunicationItem dictionaries representing chat messages.
+        max_items: Maximum number of chat announcements to include. Defaults to 10.
+
+    Returns:
+        HTML formatted unordered list block for Regional Chat & Team Announcements.
+    """
+    items = chat_threads or []
+    if not items:
+        return "<ul>\n  <li>No major team announcements or regional chat updates across tracked spaces.</li>\n</ul>"
+
+    lines: list[str] = ["<ul>"]
+    seen_threads: set[str] = set()
+    for item in items[:max_items]:
+        thread_id = item.get("thread_id", "")
+        if thread_id and thread_id in seen_threads:
+            continue
+        if thread_id:
+            seen_threads.add(thread_id)
+
+        sender_name = resolve_all_names_and_identifiers(
+            item.get("sender_name", "Team Member")
+        )
+        subject = resolve_all_names_and_identifiers(item.get("subject", "Chat Update"))
+        snippet = resolve_all_names_and_identifiers(item.get("snippet", ""))
+        deep_link = item.get("deep_link", "https://chat.google.com")
+
+        bullet = (
+            f'  <li><b><a href="{deep_link}"><u>{subject}</u></a> ({sender_name}):</b> '
+            f"{snippet[:500]}</li>"
+        )
+        lines.append(bullet)
 
     lines.append("</ul>")
     return "\n".join(lines)
@@ -308,28 +352,28 @@ def format_hot_list_updates(
     for theme in themes:
         theme_items = matches.get(theme, [])
         if theme_items:
-            # Theme has unread updates
-            item = theme_items[0]
-            deep_link = item.get("deep_link", "https://mail.google.com")
-            subject = item.get("subject", theme)
-            snippet = item.get("snippet", "Ongoing discussion.")
-            clean_sub = resolve_all_names_and_identifiers(subject).strip()
-            clean_snip = resolve_all_names_and_identifiers(snippet).strip()
-            sub_core = re.sub(r"^\[[^\]]+\]\s*", "", clean_sub).strip()
-            if sub_core and (
-                sub_core.lower() in clean_snip.lower()
-                or clean_snip.lower().startswith(sub_core.lower()[:25])
-            ):
-                content_desc = clean_snip
-            elif clean_sub and clean_snip:
-                content_desc = f"{clean_sub} — {clean_snip}"
-            else:
-                content_desc = clean_sub or clean_snip or "Ongoing discussion."
-            bullet = (
-                f'  <li><b><a href="{deep_link}"><u>{theme}</u></a>:</b> '
-                f"{content_desc[:240]}</li>"
-            )
-            lines.append(bullet)
+            # Theme has unread updates (up to 3 items per theme)
+            for item in theme_items[:3]:
+                deep_link = item.get("deep_link", "https://mail.google.com")
+                subject = item.get("subject", theme)
+                snippet = item.get("snippet", "Ongoing discussion.")
+                clean_sub = resolve_all_names_and_identifiers(subject).strip()
+                clean_snip = resolve_all_names_and_identifiers(snippet).strip()
+                sub_core = re.sub(r"^\[[^\]]+\]\s*", "", clean_sub).strip()
+                if sub_core and (
+                    sub_core.lower() in clean_snip.lower()
+                    or clean_snip.lower().startswith(sub_core.lower()[:25])
+                ):
+                    content_desc = clean_snip
+                elif clean_sub and clean_snip:
+                    content_desc = f"{clean_sub} — {clean_snip}"
+                else:
+                    content_desc = clean_sub or clean_snip or "Ongoing discussion."
+                bullet = (
+                    f'  <li><b><a href="{deep_link}"><u>{theme}</u></a>:</b> '
+                    f"{content_desc[:600]}</li>"
+                )
+                lines.append(bullet)
         else:
             # Mandatory fallback string
             fallback = (
@@ -356,7 +400,7 @@ def format_market_updates(announcements: list[dict[str, Any]] | None = None) -> 
         return "<ul>\n  <li>No major frontier model releases or cloud AI announcements over the trailing 72 hours.</li>\n</ul>"
 
     lines: list[str] = ["<ul>"]
-    for item in items[:6]:
+    for item in items[:10]:
         entity = item.get("entity", "Industry")
         date_str = item.get("date", "")
         headline = item.get("headline", "")
@@ -550,11 +594,15 @@ def assemble_draft_briefing(
             if mode == "morning"
             else "EXECUTIVE WRAP-UP (DECISION & TRIAGE ORIENTATION)"
         )
+        chat_html = format_chat_announcements(chat_threads=chat_threads)
+
         raw_html_blocks = [
             f"<b>{summary_title}</b><br>",
             f"{orientation}<br><br>",
             "<b>CORE UPDATES & LEADERSHIP DIRECTIVES</b>",
             core_html,
+            "<br><b>REGIONAL CHAT & TEAM ANNOUNCEMENTS</b>",
+            chat_html,
             "<br><b>ACTIVE HOT LIST UPDATES</b>",
             hot_list_html,
         ]
@@ -577,6 +625,7 @@ def assemble_draft_briefing(
         payload = DraftBriefingPayload(
             executive_orientation=orientation,
             core_updates_html=core_html,
+            chat_announcements_html=chat_html,
             hot_list_html=hot_list_html,
             market_updates_html=market_html,
             calendar_agenda_html=agenda_html,
